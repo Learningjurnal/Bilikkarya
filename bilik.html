@@ -1285,7 +1285,7 @@ let adminMode = false;
 let KY_SETTINGS = { catColors:{} };
 
 async function ensureRating(id, seed){ let r=await sGet('rating:'+id,true); if(!r){ r=seed; await sSet('rating:'+id,r,true); } ratingsCache[id]=r; }
-function publicProducts(){ return productsCache.filter(p=>!p.blocked); }
+function publicProducts(){ return productsCache.filter(p=>!p.blocked && p.status!=='pending'); }
 async function ensureKarya(){
   let products = await sGet('karya-products', true);
   if(!products){ products = SEED_PRODUCTS; await sSet('karya-products', products, true); }
@@ -1811,6 +1811,7 @@ function renderHome(){
       <p>${t('hero_sub')}</p>
       <div class="hero-search">
         <button class="hero-search-input" id="heroSearchTrigger">🔎 ${t('hero_search_ph')}</button>
+        ${currentUser ? `<button class="btn-primary" id="uploadKaryaBtn" style="width:auto;flex-shrink:0;">+ Unggah Karya</button>` : ''}
       </div>
       <div class="hero-stats">
         <div><b>${productsCache.length}</b><span>${t('stat_karya')}</span></div>
@@ -1938,6 +1939,8 @@ function renderHome(){
   });
   const heroTrigger = document.getElementById('heroSearchTrigger');
   if(heroTrigger) heroTrigger.onclick = openSearchOverlay;
+  const uploadKaryaBtn = document.getElementById('uploadKaryaBtn');
+  if(uploadKaryaBtn) uploadKaryaBtn.onclick = openSelfKaryaForm;
   const ctaCreator = document.getElementById('ctaCreatorBtn');
   if(ctaCreator) ctaCreator.onclick = ()=>{
     if(!currentUser){ openLoginModal(); return; }
@@ -2270,6 +2273,21 @@ async function renderProductTabContent(p, cs){
 }
 
 /* ---------------- creator profile page ---------------- */
+async function creatorThreadActivity(handle){
+  const created = threadsCache
+    .filter(th => th.author===handle && th.status!=='pending')
+    .sort((a,b)=>b.ts-a.ts)
+    .slice(0,8);
+  const repliedTo = [];
+  for(const th of threadsCache){
+    if(th.status==='pending') continue;
+    const replies = await getReplies(th.id);
+    const own = replies.filter(r=>r.author===handle);
+    if(own.length) repliedTo.push({ thread: th, lastReplyTs: Math.max(...own.map(r=>r.ts)) });
+  }
+  repliedTo.sort((a,b)=>b.lastReplyTs-a.lastReplyTs);
+  return { created, repliedTo: repliedTo.slice(0,8) };
+}
 async function renderCreatorPage(handle){
   const el = document.getElementById('layoutCreator');
   if(!creatorHandles().includes(handle)){
@@ -2279,6 +2297,7 @@ async function renderCreatorPage(handle){
   const cs = creatorStats(handle);
   const levelKey = creatorLevelKey(cs);
   const following = sessionKhususVerifiedName ? isFollowing(handle, sessionKhususVerifiedName) : false;
+  const { created, repliedTo } = await creatorThreadActivity(handle);
 
   el.innerHTML = `
     <div style="max-width:100%;margin:0;padding:20px 44px 80px;">
@@ -2310,6 +2329,28 @@ async function renderCreatorPage(handle){
         const isNew = (Date.now()-p.ts) < NEW_BADGE_DAYS*24*60*60*1000;
         return `<div class="card" data-open="${p.id}"><div class="thumb" style="background:${thumbGradient(p.id)};"><span class="type-pill">${p.type==='video'?t('filter_video'):t('filter_photo')}</span>${p.region?`<span class="region-flag">${REGION_FLAG[p.region]}</span>`:''}${isNew?`<div class="badge-row"><span class="badge-new">${t('badge_new')}</span></div>`:''}${categoryThumbSvg(p.cat)}${videoPlayBadge(p.type)}</div><div class="card-body"><div class="card-title">${escapeHtml(p.title)}</div><div class="card-footer"><div class="price">${rupiah(p.price)}</div><div class="rating-line"><span class="stars">${starString(pa)}</span>${pa.toFixed(1)}</div></div><button class="detail-btn" data-open="${p.id}">${t('card_view')}</button></div></div>`;
       }).join('') || emptyIllustrated(t('empty_karya'))}</div>
+
+      <div class="home-section-head" style="margin-top:32px;"><h2>Thread yang Dibuat</h2></div>
+      <div class="thread-list">${created.map(th=>`
+        <div class="thread-row" data-thread="${th.id}">
+          <span class="thread-cat ${th.cat==='Pengumuman'?'pengumuman':''}">${fcatLabel(th.cat)}</span>
+          <div class="thread-main">
+            <div class="thread-title">${th.pinned?'<span class="pin">📌</span>':''}${escapeHtml(th.title)}</div>
+            <div class="thread-meta">${timeAgo(th.ts)}</div>
+          </div>
+        </div>`).join('') || `<div class="empty" style="padding:16px 0;">Belum ada thread yang dibuat.</div>`}
+      </div>
+
+      <div class="home-section-head" style="margin-top:32px;"><h2>Thread yang Baru Ditanggapi</h2></div>
+      <div class="thread-list">${repliedTo.map(({thread:th, lastReplyTs})=>`
+        <div class="thread-row" data-thread="${th.id}">
+          <span class="thread-cat ${th.cat==='Pengumuman'?'pengumuman':''}">${fcatLabel(th.cat)}</span>
+          <div class="thread-main">
+            <div class="thread-title">${escapeHtml(th.title)}</div>
+            <div class="thread-meta">Menanggapi ${timeAgo(lastReplyTs)}</div>
+          </div>
+        </div>`).join('') || `<div class="empty" style="padding:16px 0;">Belum ada thread yang ditanggapi.</div>`}
+      </div>
     </div>
   `;
   document.getElementById('creatorBackBtn').onclick = ()=>{ activeCreatorHandle=null; renderActiveView(); pushRoute(); };
@@ -3801,19 +3842,24 @@ async function renderAdmin(){
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:8px;">
           <input type="checkbox" id="kyChkAll"> Pilih semua
         </label>
-        ${productsCache.map(p=>`
+        ${[...productsCache].sort((a,b)=>(a.status==='pending'?-1:0)-(b.status==='pending'?-1:0)).map(p=>`
           <div class="admin-row">
             <input type="checkbox" class="ky-cb" data-kychk="${p.id}" style="margin-right:4px;">
             <div class="ky-thumb" data-kylb="${p.id}" title="${p.img?'Lihat gambar penuh':'Tidak ada gambar'}">
               ${p.img ? `<img src="${escapeHtml(p.img)}" alt="" loading="lazy">` : `<span class="ky-thumb-ph">🖼</span>`}
             </div>
             <div class="admin-row-main">
-              <div class="admin-row-title">${escapeHtml(p.title)} ${p.region?REGION_FLAG[p.region]:''} ${p.blocked?'<span class="status-pill" style="background:var(--danger-tint);color:var(--danger);">Diblokir</span>':''}</div>
-              <div class="admin-row-sub"><span style="color:${kyCatColor(p.cat)}">●</span> ${catLabel(p.cat)} · 👁 ${p.views||0} · ⬇ ${p.downloads||0} · ${p.downloadUrl?'🔗':'—'}</div>
+              <div class="admin-row-title">${escapeHtml(p.title)} ${p.region?REGION_FLAG[p.region]:''} ${p.blocked?'<span class="status-pill" style="background:var(--danger-tint);color:var(--danger);">Diblokir</span>':''} ${p.status==='pending'?'<span class="status-pill" style="background:var(--warn-tint);color:var(--warn);">Menunggu Persetujuan</span>':''}</div>
+              <div class="admin-row-sub"><span style="color:${kyCatColor(p.cat)}">●</span> ${catLabel(p.cat)} · ${escapeHtml(p.seller)} · 👁 ${p.views||0} · ⬇ ${p.downloads||0} · ${p.downloadUrl?'🔗':'—'}</div>
             </div>
             <div style="display:flex;gap:6px;">
-              <button class="btn-secondary" data-editkarya="${p.id}">${t('admin_edit')}</button>
-              <button class="${p.blocked?'btn-warn':'btn-secondary'}" data-blockkarya="${p.id}">${p.blocked?'Buka Blokir':'Blokir'}</button>
+              ${p.status==='pending' ? `
+                <button class="btn-primary" style="width:auto;" data-approvekarya="${p.id}">Setujui</button>
+                <button class="btn-danger" data-rejectkarya="${p.id}">Tolak</button>
+              ` : `
+                <button class="btn-secondary" data-editkarya="${p.id}">${t('admin_edit')}</button>
+                <button class="${p.blocked?'btn-warn':'btn-secondary'}" data-blockkarya="${p.id}">${p.blocked?'Buka Blokir':'Blokir'}</button>
+              `}
               <button class="btn-danger" data-deletekarya="${p.id}">${t('btn_delete')}</button>
             </div>
           </div>
@@ -3999,6 +4045,24 @@ async function renderAdmin(){
     toast(p.blocked ? 'Karya diblokir dari etalase publik' : 'Blokir dibuka', 'success');
     renderHeadStats(); renderAdmin();
   });
+  el.querySelectorAll('[data-approvekarya]').forEach(b=>b.onclick = async ()=>{
+    const p = productsCache.find(x=>x.id===b.dataset.approvekarya);
+    if(!p) return;
+    delete p.status;
+    await sSet('karya-products', productsCache, true);
+    toast('Karya disetujui, sekarang tampil di etalase', 'success');
+    renderHeadStats(); renderAdmin();
+  });
+  el.querySelectorAll('[data-rejectkarya]').forEach(b=>b.onclick = ()=>{
+    const p = productsCache.find(x=>x.id===b.dataset.rejectkarya);
+    if(!p) return;
+    openConfirm('Tolak karya ini?', `"${p.title}" akan dihapus permanen dan tidak masuk etalase.`, t('confirm_delete_permanent'), async ()=>{
+      productsCache = productsCache.filter(x=>x.id!==p.id);
+      await sSet('karya-products', productsCache, true);
+      toast('Karya ditolak & dihapus', 'success');
+      renderHeadStats(); renderAdmin();
+    });
+  });
   el.querySelectorAll('[data-deletekarya]').forEach(b=>b.onclick = ()=>{
     const p = productsCache.find(x=>x.id===b.dataset.deletekarya);
     openConfirm(t('confirm_delete_karya_title'), t('confirm_delete_karya_msg',{title:p.title}), t('confirm_delete_permanent'), async ()=>{
@@ -4072,12 +4136,12 @@ function kyRenderKpi(){
   const el = document.getElementById('kyKpiRow');
   if(!el) return;
   const total = productsCache.length;
+  const pending = productsCache.filter(p=>p.status==='pending').length;
   const views = productsCache.reduce((s,p)=>s+(p.views||0),0);
   const downloads = productsCache.reduce((s,p)=>s+(p.downloads||0),0);
-  const avgRating = (()=>{ const rs = productsCache.map(p=>{ const r=ratingsCache[p.id]; return r&&r.count?r.sum/r.count:null; }).filter(x=>x!=null); return rs.length ? (rs.reduce((a,b)=>a+b,0)/rs.length).toFixed(1) : '—'; })();
   el.innerHTML = [
-    ['Total Karya', total], ['Total Views', fmtNum(views)], ['Total Unduhan', fmtNum(downloads)], ['Rating Rata-rata', avgRating]
-  ].map(([label,val])=>`<div class="ky-kpi"><b>${val}</b><span>${label}</span></div>`).join('');
+    ['Total Karya', total], ['Menunggu Persetujuan', pending], ['Total Views', fmtNum(views)], ['Total Unduhan', fmtNum(downloads)]
+  ].map(([label,val])=>`<div class="ky-kpi"><b style="${label==='Menunggu Persetujuan'&&val>0?'color:var(--warn)':''}">${val}</b><span>${label}</span></div>`).join('');
 }
 function fmtNum(n){ return n.toLocaleString('id-ID'); }
 function kyRenderCatColorBox(){
@@ -4215,6 +4279,67 @@ function kyWireExtras(el){
   if(importFile) importFile.onchange = (e)=>{ if(e.target.files[0]) kyReadImportFile(e.target.files[0]); };
   const importDo = document.getElementById('kyImportDoBtn');
   if(importDo) importDo.onclick = kyDoImport;
+}
+// Self-service upload for logged-in users: same product shape as the admin
+// form, but seller is locked to the account's own name and it always lands
+// as status:'pending' — invisible everywhere publicProducts() is used until
+// an admin approves it from the Kelola Karya panel.
+function openSelfKaryaForm(){
+  if(!currentUser){ toast('Anda perlu login dulu untuk unggah karya', 'error'); openLoginModal('login'); return; }
+  const el = document.getElementById('threadFormModal');
+  el.innerHTML = `
+    <button class="modal-close" id="selfKaryaFormClose" aria-label="${t('close_dialog')}">✕</button>
+    <div style="padding:22px;">
+      <h3 style="margin-top:0;">Unggah Karya</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:-8px;">Karya Anda akan ditinjau admin dulu sebelum tampil di etalase publik.</p>
+      <div class="posting-as">👤 ${t('posting_as',{name:escapeHtml(currentUser.name)})}</div>
+      <div class="field"><label for="skfTitle">${t('field_karya_title')}</label><input id="skfTitle"></div>
+      <div class="field"><label for="skfType">${t('field_karya_type')}</label>
+        <select id="skfType"><option value="foto">${t('filter_photo')}</option><option value="video">${t('filter_video')}</option></select>
+      </div>
+      <div class="field"><label for="skfCat">${t('field_karya_cat')}</label><input id="skfCat" placeholder="mis. Arsitektur"></div>
+      <div class="field"><label for="skfImg">URL Gambar</label><input id="skfImg" placeholder="https://…"></div>
+      <div class="field"><label for="skfRegion">${t('field_karya_region')}</label>
+        <select id="skfRegion"><option value="">${t('field_region_none')}</option>${REGIONS.map(r=>`<option value="${r}">${REGION_FLAG[r]} ${r}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label for="skfPrice">${t('field_karya_price')}</label><input id="skfPrice" type="number"></div>
+      <div class="field"><label for="skfRes">${t('field_karya_res')}</label><input id="skfRes"></div>
+      <div class="field"><label for="skfFormat">${t('field_karya_format')}</label><input id="skfFormat"></div>
+      <div class="field"><label for="skfSize">${t('field_karya_size')}</label><input id="skfSize"></div>
+      <div class="field"><label for="skfDesc">${t('field_karya_desc')}</label><input id="skfDesc"></div>
+      <div class="field"><label for="skfDownload">${t('field_karya_download')}</label><input id="skfDownload"></div>
+      <button class="btn-primary" id="skfSubmit">Kirim untuk Ditinjau</button>
+    </div>
+  `;
+  const close = ()=>deactivateOverlay('threadFormOverlay');
+  activateOverlay('threadFormOverlay', close);
+  document.getElementById('selfKaryaFormClose').onclick = close;
+  document.getElementById('skfSubmit').onclick = async ()=>{
+    const title = document.getElementById('skfTitle').value.trim();
+    if(!title){ toast(t('toast_karya_required'), 'error'); return; }
+    const downloadUrl = document.getElementById('skfDownload').value.trim();
+    if(downloadUrl && !isSafeUrl(downloadUrl)){ toast('Link unduhan harus diawali http:// atau https://', 'error'); return; }
+    const newId = 'p'+Date.now();
+    const product = {
+      id: newId, seller: currentUser.name, status:'pending', views:0, downloads:0, ts:Date.now(),
+      title,
+      type: document.getElementById('skfType').value,
+      cat: document.getElementById('skfCat').value.trim() || 'Lainnya',
+      region: document.getElementById('skfRegion').value || null,
+      price: parseInt(document.getElementById('skfPrice').value,10) || 0,
+      res: document.getElementById('skfRes').value.trim(),
+      format: document.getElementById('skfFormat').value.trim(),
+      size: document.getElementById('skfSize').value.trim(),
+      desc: document.getElementById('skfDesc').value.trim(),
+      downloadUrl,
+      img: document.getElementById('skfImg').value.trim(),
+    };
+    productsCache.push(product);
+    await ensureRating(newId, {sum:0,count:0});
+    await sSet('karya-products', productsCache, true);
+    close();
+    toast('Karya terkirim — menunggu persetujuan admin', 'success');
+  };
 }
 function openKaryaForm(id){
   const existing = id ? productsCache.find(x=>x.id===id) : null;
