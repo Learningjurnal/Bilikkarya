@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id" data-theme="light">
 <head>
@@ -431,6 +432,11 @@
   .hero{position:relative;border-radius:var(--r-xl);overflow:hidden;padding:var(--sp-8) var(--sp-6);margin-bottom:var(--sp-9);
     background:radial-gradient(120% 140% at 15% -10%, var(--accent-tint), transparent 55%), var(--panel);
     border:1px solid var(--border);box-shadow:var(--e2);}
+  /* Signature device shared with landing.html: viewfinder-style crop marks,
+     reusing --warn (already ochre/amber in both themes) rather than a new token. */
+  .crop-marks::before,.crop-marks::after{content:'';position:absolute;width:10px;height:10px;pointer-events:none;z-index:2;}
+  .crop-marks::before{top:10px;left:10px;border-top:1.5px solid var(--warn);border-left:1.5px solid var(--warn);}
+  .crop-marks::after{bottom:10px;right:10px;border-bottom:1.5px solid var(--warn);border-right:1.5px solid var(--warn);}
   .hero-eyebrow{display:inline-flex;align-items:center;gap:6px;background:var(--accent-tint);color:var(--accent-dark);font-size:11.5px;font-weight:700;padding:6px 14px;border-radius:var(--r-full);margin-bottom:var(--sp-4);}
   html[data-theme="dark"] .hero-eyebrow{color:var(--accent);}
   .hero h1{margin:0 0 var(--sp-3);font-size:clamp(30px,4.6vw,48px);font-weight:700;letter-spacing:-.03em;line-height:1.04;max-width:680px;}
@@ -469,7 +475,7 @@
 
   /* ---- Category explorer ---- */
   .cat-explorer{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:var(--sp-3);}
-  .cat-tile{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-3);text-align:center;transition:transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);color:var(--ink);}
+  .cat-tile{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-3);text-align:center;transition:transform var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);color:var(--ink);}
   .cat-tile:hover{transform:translateY(-3px);border-color:var(--accent);}
   .cat-tile .ci{display:flex;justify-content:center;margin-bottom:var(--sp-2);}
   .cat-tile .ci svg{width:26px;height:26px;stroke:var(--ink);opacity:.6;}
@@ -1799,7 +1805,7 @@ function renderHome(){
   const testimonials = (supportersCache||[]).filter(s=>s.message).slice(0,3);
 
   el.innerHTML = `
-    <section class="hero">
+    <section class="hero crop-marks">
       <span class="hero-eyebrow">✦ ${t('hero_eyebrow')}</span>
       <h1>${t('hero_title')}</h1>
       <p>${t('hero_sub')}</p>
@@ -1842,7 +1848,7 @@ function renderHome(){
       <div class="home-section-head"><h2>${t('section_categories')}</h2></div>
       <div class="cat-explorer">${cats.map(c=>{
         const count = publicProducts().filter(p=>p.cat===c).length;
-        return `<button class="cat-tile" data-catexplore="${c}"><span class="ci">${categoryThumbSvg(c)}</span><span class="cn">${catLabel(c)}</span><span class="cc">${count} ${t('stat_karya').toLowerCase()}</span></button>`;
+        return `<button class="cat-tile crop-marks" data-catexplore="${c}"><span class="ci">${categoryThumbSvg(c)}</span><span class="cn">${catLabel(c)}</span><span class="cc">${count} ${t('stat_karya').toLowerCase()}</span></button>`;
       }).join('')}</div>
     </section>
 
@@ -1963,7 +1969,7 @@ function bentoCard(p, size, popularIds){
   const isNew = (Date.now()-p.ts) < NEW_BADGE_DAYS*24*60*60*1000;
   const isPopular = popularIds.includes(p.id);
   return `
-  <div class="bento-card size-${size}" data-open="${p.id}">
+  <div class="bento-card size-${size}${size==='featured'?' crop-marks':''}" data-open="${p.id}">
     <div class="bento-thumb" style="background:${thumbGradient(p.id)};">
       ${p.region ? `<span class="region-flag" title="${p.region}">${REGION_FLAG[p.region]||''}</span>` : ''}
       <div class="badge-row">${isNew?`<span class="badge-new">${t('badge_new')}</span>`:''}${isPopular?`<span class="badge-popular">${t('badge_popular')}</span>`:''}</div>
@@ -2023,7 +2029,7 @@ function renderKarya(){
     const isPopular = popularIds.includes(p.id);
     return `
     <div class="card" data-open="${p.id}">
-      <div class="thumb" style="background:${thumbGradient(p.id)};">
+      <div class="thumb crop-marks" style="background:${thumbGradient(p.id)};">
         <span class="type-pill">${p.type==='video'?t('filter_video'):t('filter_photo')}</span>
         <button class="wishlist-heart ${isWishlisted(p.id)?'active':''}" data-wishlist="${p.id}" aria-label="${t('wishlist_toggle')}" aria-pressed="${isWishlisted(p.id)}">${isWishlisted(p.id)?'♥':'♡'}</button>
         ${p.region ? `<span class="region-flag" title="${p.region}">${REGION_FLAG[p.region]||''}</span>` : ''}
