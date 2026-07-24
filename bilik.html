@@ -752,9 +752,9 @@ const STRINGS = {
     side_support_btn:'Kirim Dukungan', side_pendukung_title:'Pendukung Terbaru',
     supporter_gives:'{name} memberi dukungan {amount}', empty_pendukung:'Belum ada pendukung.',
     modal_resolution:'Resolusi', modal_format:'Format', modal_size:'Ukuran',
-    modal_rate_label:'Beri rating:', modal_own_btn:'Miliki Karya Ini',
+    modal_rate_label:'Beri rating:',
     modal_rating_count:'dari {count} rating', modal_star_aria:'Beri rating {n} dari 5 bintang',
-    toast_thanks_rating:'Terima kasih, rating {n}★ tersimpan!', toast_demo_transaction:'Transaksi demo — belum ada pembayaran nyata.',
+    toast_thanks_rating:'Terima kasih, rating {n}★ tersimpan!',
     support_modal_title:'Dukung Studio GARIS', support_amount_label:'Nominal (Rp)',
     support_name_label:'Nama kamu', support_msg_label:'Pesan (opsional)',
     support_submit_btn:'Kirim Dukungan (Demo)', support_disclaimer:'Simulasi — belum terhubung ke pembayaran sungguhan.',
@@ -785,7 +785,7 @@ const STRINGS = {
     toast_member_not_approved:'Nama ini belum terdaftar sebagai member khusus yang disetujui.',
     region_label:'Regional', region_semua:'Semua Regional',
     field_region:'Regional (opsional)', field_region_none:'Tanpa regional',
-    download_btn:'Unduh Karya', download_link_missing:'Tautan unduhan belum tersedia',
+    download_btn:'Beli / Kunjungi Link Penjual ↗', download_link_missing:'Link pembelian belum tersedia', no_purchase_link_note:'Penjual belum menambahkan link pembelian — hubungi lewat profil kreator.',
     toast_download_started:'Mengunduh… tautan dibuka di tab baru.',
     admin_karya_title:'Kelola Karya', admin_karya_sub:'Tambah karya baru, atur regional & tautan unduhan, atau hapus karya.',
     admin_supabase_title:'Koneksi Supabase', admin_supabase_sub:'Data BILIK tersimpan di Supabase — sudah terhubung otomatis, tidak perlu diisi ulang di device lain.',
@@ -946,9 +946,9 @@ const STRINGS = {
     side_support_btn:'Send Support', side_pendukung_title:'Recent Supporters',
     supporter_gives:'{name} gave {amount}', empty_pendukung:'No supporters yet.',
     modal_resolution:'Resolution', modal_format:'Format', modal_size:'Size',
-    modal_rate_label:'Rate this:', modal_own_btn:'Get This Work',
+    modal_rate_label:'Rate this:',
     modal_rating_count:'from {count} ratings', modal_star_aria:'Rate {n} out of 5 stars',
-    toast_thanks_rating:'Thanks, your {n}★ rating was saved!', toast_demo_transaction:'Demo transaction — no real payment has been made.',
+    toast_thanks_rating:'Thanks, your {n}★ rating was saved!',
     support_modal_title:'Support Studio GARIS', support_amount_label:'Amount (Rp)',
     support_name_label:'Your name', support_msg_label:'Message (optional)',
     support_submit_btn:'Send Support (Demo)', support_disclaimer:'Simulation — not yet connected to real payments.',
@@ -979,7 +979,7 @@ const STRINGS = {
     toast_member_not_approved:'This name is not registered as an approved exclusive member.',
     region_label:'Region', region_semua:'All Regions',
     field_region:'Region (optional)', field_region_none:'No region',
-    download_btn:'Download Work', download_link_missing:'Download link not available yet',
+    download_btn:'Buy / Visit Seller Link ↗', download_link_missing:'Purchase link not available yet', no_purchase_link_note:"The seller hasn't added a purchase link yet — reach out via their creator profile.",
     toast_download_started:'Downloading… link opened in a new tab.',
     admin_karya_title:'Manage Works', admin_karya_sub:'Add new works, set region & download links, or remove works.',
     admin_supabase_title:'Supabase Connection', admin_supabase_sub:'BILIK data is stored in Supabase — already auto-connected, no need to re-enter on other devices.',
@@ -2158,10 +2158,10 @@ async function renderProductPage(p){
           <div class="modal-price" style="font-size:26px;">${rupiah(p.price)}</div>
           <div class="rate-avg" style="margin-bottom:14px;"><span class="stars" style="font-size:15px;">${starString(avg)}</span><span class="count">${avg.toFixed(1)} · ${t('modal_rating_count',{count:r.count})}</span></div>
           <div class="stat-line" style="margin-bottom:16px;"><span>👁 ${(p.views||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')}</span><span>⬇ ${(p.downloads||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')}</span><span id="likeCountLabel">❤ ${liked}</span></div>
-          <button class="btn-primary" id="downloadBtnBuy">${t('modal_own_btn')}</button>
-          <button class="download-btn" id="realDownloadBtn" ${p.downloadUrl?'':'disabled'} style="margin-top:8px;">${p.downloadUrl?t('download_btn'):t('download_link_missing')}</button>
+          <button class="btn-primary" id="realDownloadBtn" ${p.downloadUrl?'':'disabled'}>${p.downloadUrl?t('download_btn'):t('download_link_missing')}</button>
           <button class="btn-secondary" id="likeBtn" style="width:100%;margin-top:8px;">${t('like_btn')}</button>
           <button class="btn-secondary" id="wishlistBtnProduct" style="width:100%;margin-top:8px;">${isWishlisted(p.id)?t('wishlist_remove_btn'):t('wishlist_add_btn')}</button>
+          ${!p.downloadUrl ? `<p style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;">${t('no_purchase_link_note')}</p>` : ''}
         </div>
       </div>
 
@@ -2182,7 +2182,6 @@ async function renderProductPage(p){
   `;
   document.getElementById('prodBackBtn').onclick = ()=>{ activeProductId=null; renderActiveView(); pushRoute(); };
   el.querySelectorAll('[data-gocreator]').forEach(b=>b.onclick = ()=>goCreator(decodeURIComponent(b.dataset.gocreator)));
-  document.getElementById('downloadBtnBuy').onclick = ()=>toast(t('toast_demo_transaction'));
   document.getElementById('realDownloadBtn').onclick = async ()=>{
     if(!p.downloadUrl) return;
     p.downloads = (p.downloads||0)+1;
@@ -2917,11 +2916,19 @@ async function renderThreadList(el){
     el.innerHTML = `
       <div class="scope-tabs">${renderScopeTabsHtml()}</div>
       <div class="filters">${renderKhususDropdownHtml()}</div>
-      <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 16px;">Karya eksklusif untuk member khusus & admin — tidak tampil di etalase publik.</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-4px 0 16px;flex-wrap:wrap;">
+        <p style="font-size:12.5px;color:var(--muted);margin:0;">Karya eksklusif untuk member khusus & admin — tidak tampil di etalase publik.</p>
+        ${currentUser ? `<button class="btn-primary" id="addKhususKaryaBtn" style="width:auto;flex-shrink:0;">+ Tambah Karya Khusus</button>` : ''}
+      </div>
       <div class="grid">${items.map(p=>productCardHtml(p, popularIds)).join('') || emptyIllustrated(t('empty_karya'))}</div>
     `;
     wireScopeTabs(el);
     wireKhususDropdown(el);
+    const addBtn = document.getElementById('addKhususKaryaBtn');
+    if(addBtn) addBtn.onclick = ()=>{
+      if(isRealAdmin) openKaryaForm(null, true);
+      else openSelfKaryaForm(true);
+    };
     return;
   }
 
@@ -4519,14 +4526,14 @@ function kyWireExtras(el){
 // form, but seller is locked to the account's own name and it always lands
 // as status:'pending' — invisible everywhere publicProducts() is used until
 // an admin approves it from the Kelola Karya panel.
-function openSelfKaryaForm(){
+function openSelfKaryaForm(forceKhusus){
   if(!currentUser){ toast('Anda perlu login dulu untuk unggah karya', 'error'); openLoginModal('login'); return; }
   const el = document.getElementById('threadFormModal');
   el.innerHTML = `
     <button class="modal-close" id="selfKaryaFormClose" aria-label="${t('close_dialog')}">✕</button>
     <div style="padding:22px;">
-      <h3 style="margin-top:0;">Unggah Karya</h3>
-      <p style="font-size:12.5px;color:var(--muted);margin-top:-8px;">Karya Anda akan ditinjau admin dulu sebelum tampil di etalase publik.</p>
+      <h3 style="margin-top:0;">${forceKhusus ? 'Unggah Karya Khusus' : 'Unggah Karya'}</h3>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:-8px;">${forceKhusus ? 'Karya ini akan masuk Etalase Khusus (hanya member khusus & admin) setelah ditinjau admin.' : 'Karya Anda akan ditinjau admin dulu sebelum tampil di etalase publik.'}</p>
       <div class="posting-as">👤 ${t('posting_as',{name:escapeHtml(currentUser.name)})}</div>
       <div class="field"><label for="skfTitle">${t('field_karya_title')}</label><input id="skfTitle"></div>
       <div class="field"><label for="skfType">${t('field_karya_type')}</label>
@@ -4556,7 +4563,7 @@ function openSelfKaryaForm(){
     if(downloadUrl && !isSafeUrl(downloadUrl)){ toast('Link unduhan harus diawali http:// atau https://', 'error'); return; }
     const newId = 'p'+Date.now();
     const product = {
-      id: newId, seller: currentUser.name, status:'pending', views:0, downloads:0, ts:Date.now(),
+      id: newId, seller: currentUser.name, status:'pending', khusus:!!forceKhusus, views:0, downloads:0, ts:Date.now(),
       title,
       type: document.getElementById('skfType').value,
       cat: document.getElementById('skfCat').value.trim() || 'Lainnya',
@@ -4576,7 +4583,7 @@ function openSelfKaryaForm(){
     toast('Karya terkirim — menunggu persetujuan admin', 'success');
   };
 }
-function openKaryaForm(id){
+function openKaryaForm(id, presetKhusus){
   const existing = id ? productsCache.find(x=>x.id===id) : null;
   const el = document.getElementById('threadFormModal');
   el.innerHTML = `
@@ -4600,7 +4607,7 @@ function openKaryaForm(id){
       <div class="field"><label for="kfDesc">${t('field_karya_desc')}</label><input id="kfDesc" value="${existing?escapeHtml(existing.desc):''}"></div>
       <div class="field"><label for="kfDownload">${t('field_karya_download')}</label><input id="kfDownload" value="${existing?escapeHtml(existing.downloadUrl||''):''}"></div>
       <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin:-4px 0 14px;">
-        <input type="checkbox" id="kfKhusus" ${existing&&existing.khusus?'checked':''}> Etalase Khusus — hanya tampil untuk member khusus & admin
+        <input type="checkbox" id="kfKhusus" ${(existing?existing.khusus:presetKhusus)?'checked':''}> Etalase Khusus — hanya tampil untuk member khusus & admin
       </label>
       <button class="btn-primary" id="kfSubmit">${t('btn_save_karya')}</button>
     </div>
