@@ -1291,13 +1291,24 @@ let adminMode = false;
 let KY_SETTINGS = { catColors:{} };
 
 async function ensureRating(id, seed){ let r=await sGet('rating:'+id,true); if(!r){ r=seed; await sSet('rating:'+id,r,true); } ratingsCache[id]=r; }
-function publicProducts(){ return productsCache.filter(p=>!p.blocked && p.status!=='pending'); }
+function publicProducts(){ return productsCache.filter(p=>!p.blocked && p.status!=='pending' && !p.khusus); }
+function khususProducts(){ return productsCache.filter(p=>!p.blocked && p.status!=='pending' && p.khusus); }
 async function ensureKarya(){
   let products = await sGet('karya-products', true);
   if(!products){ products = SEED_PRODUCTS; await sSet('karya-products', products, true); }
-  productsCache = products;
+  // Khusus items live in a separate Supabase key so RLS can actually restrict
+  // read access to khusus members/admin at the database level — a single
+  // shared blob can only be all-open or all-closed, not filtered per item.
+  const khusus = await sGet('karya-products-khusus', true) || [];
+  productsCache = [...products, ...khusus.map(p=>({...p, khusus:true}))];
   const settings = await sGet('karya-settings', true);
   if(settings) KY_SETTINGS = settings;
+}
+async function saveProducts(){
+  const publicList = productsCache.filter(p=>!p.khusus);
+  const khususList = productsCache.filter(p=>p.khusus);
+  await sSet('karya-products', publicList, true);
+  await sSet('karya-products-khusus', khususList, true);
 }
 async function ensureForum(){
   let threads = await sGet('forum-threads', true);
@@ -2019,6 +2030,37 @@ function skeletonBlock(rows){
   return `<div class="skel-wrap">${out}</div>`;
 }
 
+function productCardHtml(p, popularIds){
+  const r = ratingsCache[p.id] || {sum:0,count:0};
+  const avg = avgOf(r);
+  const isNew = (Date.now()-p.ts) < NEW_BADGE_DAYS*24*60*60*1000;
+  const isPopular = popularIds.includes(p.id);
+  return `
+    <div class="card" data-open="${p.id}">
+      <div class="thumb crop-marks" style="background:${thumbGradient(p.id)};">
+        <span class="type-pill">${p.type==='video'?t('filter_video'):t('filter_photo')}</span>
+        <button class="wishlist-heart ${isWishlisted(p.id)?'active':''}" data-wishlist="${p.id}" aria-label="${t('wishlist_toggle')}" aria-pressed="${isWishlisted(p.id)}">${isWishlisted(p.id)?'♥':'♡'}</button>
+        ${p.region ? `<span class="region-flag" title="${p.region}">${REGION_FLAG[p.region]||''}</span>` : ''}
+        <div class="badge-row">
+          ${isNew ? `<span class="badge-new">${t('badge_new')}</span>` : ''}
+          ${isPopular ? `<span class="badge-popular">${t('badge_popular')}</span>` : ''}
+          ${p.khusus ? `<span class="badge-new" style="background:var(--accent);">Khusus</span>` : ''}
+        </div>
+        ${categoryThumbSvg(p.cat)}${videoPlayBadge(p.type)}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escapeHtml(p.title)}</div>
+        <div class="seller-row"><div class="avatar">${initials(p.seller)}</div>${p.seller} · ${catLabel(p.cat)}</div>
+        <div class="specs">${p.res} · ${p.format}</div>
+        <div class="specs">👁 ${(p.views||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')} · ⬇ ${(p.downloads||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')}</div>
+        <div class="card-footer">
+          <div class="price">${rupiah(p.price)}</div>
+          <div class="rating-line"><span class="stars">${starString(avg)}</span>${avg.toFixed(1)} (${r.count})</div>
+        </div>
+        <button class="detail-btn" data-open="${p.id}">${t('card_view')}</button>
+      </div>
+    </div>`;
+}
 function renderKarya(){
   document.getElementById('typeFilters').innerHTML = ['Semua','foto','video'].map(ty=>{
     const label = ty==='Semua'?t('filter_all_type'):(ty==='foto'?t('filter_photo'):t('filter_video'));
@@ -2035,36 +2077,7 @@ function renderKarya(){
     if(karyaSearchQuery.trim() && !p.title.toLowerCase().includes(karyaSearchQuery.trim().toLowerCase())) return false;
     return true;
   });
-  document.getElementById('productGrid').innerHTML = list.map(p=>{
-    const r = ratingsCache[p.id] || {sum:0,count:0};
-    const avg = avgOf(r);
-    const isNew = (Date.now()-p.ts) < NEW_BADGE_DAYS*24*60*60*1000;
-    const isPopular = popularIds.includes(p.id);
-    return `
-    <div class="card" data-open="${p.id}">
-      <div class="thumb crop-marks" style="background:${thumbGradient(p.id)};">
-        <span class="type-pill">${p.type==='video'?t('filter_video'):t('filter_photo')}</span>
-        <button class="wishlist-heart ${isWishlisted(p.id)?'active':''}" data-wishlist="${p.id}" aria-label="${t('wishlist_toggle')}" aria-pressed="${isWishlisted(p.id)}">${isWishlisted(p.id)?'♥':'♡'}</button>
-        ${p.region ? `<span class="region-flag" title="${p.region}">${REGION_FLAG[p.region]||''}</span>` : ''}
-        <div class="badge-row">
-          ${isNew ? `<span class="badge-new">${t('badge_new')}</span>` : ''}
-          ${isPopular ? `<span class="badge-popular">${t('badge_popular')}</span>` : ''}
-        </div>
-        ${categoryThumbSvg(p.cat)}${videoPlayBadge(p.type)}
-      </div>
-      <div class="card-body">
-        <div class="card-title">${escapeHtml(p.title)}</div>
-        <div class="seller-row"><div class="avatar">${initials(p.seller)}</div>${p.seller} · ${catLabel(p.cat)}</div>
-        <div class="specs">${p.res} · ${p.format}</div>
-        <div class="specs">👁 ${(p.views||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')} · ⬇ ${(p.downloads||0).toLocaleString(currentLang==='en'?'en-US':'id-ID')}</div>
-        <div class="card-footer">
-          <div class="price">${rupiah(p.price)}</div>
-          <div class="rating-line"><span class="stars">${starString(avg)}</span>${avg.toFixed(1)} (${r.count})</div>
-        </div>
-        <button class="detail-btn" data-open="${p.id}">${t('card_view')}</button>
-      </div>
-    </div>`;
-  }).join('') || (karyaSearchQuery.trim() ? emptyIllustrated(t('forum_empty_search',{q:escapeHtml(karyaSearchQuery)}), {kind:'noresults', desc:t('search_no_results_desc'), ctaHtml:`<button class="btn-secondary" id="clearKaryaSearchBtn">${t('clear_search_btn')}</button>`}) : emptyIllustrated(t('empty_karya')));
+  document.getElementById('productGrid').innerHTML = list.map(p=>productCardHtml(p, popularIds)).join('') || (karyaSearchQuery.trim() ? emptyIllustrated(t('forum_empty_search',{q:escapeHtml(karyaSearchQuery)}), {kind:'noresults', desc:t('search_no_results_desc'), ctaHtml:`<button class="btn-secondary" id="clearKaryaSearchBtn">${t('clear_search_btn')}</button>`}) : emptyIllustrated(t('empty_karya')));
   const clearBtn = document.getElementById('clearKaryaSearchBtn');
   if(clearBtn) clearBtn.onclick = ()=>{ karyaSearchQuery=''; const si=document.getElementById('karyaSearch'); if(si) si.value=''; renderKarya(); };
 
@@ -2173,7 +2186,7 @@ async function renderProductPage(p){
   document.getElementById('realDownloadBtn').onclick = async ()=>{
     if(!p.downloadUrl) return;
     p.downloads = (p.downloads||0)+1;
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     window.open(p.downloadUrl, '_blank', 'noopener');
     toast(t('toast_download_started'), 'success');
     renderProductPage(p);
@@ -2898,6 +2911,20 @@ async function renderThreadList(el){
     return;
   }
 
+  if(activeForumScope==='khusus' && activeKhususView==='etalasekhusus'){
+    const items = khususProducts();
+    const popularIds = popularProductIds();
+    el.innerHTML = `
+      <div class="scope-tabs">${renderScopeTabsHtml()}</div>
+      <div class="filters">${renderKhususDropdownHtml()}</div>
+      <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 16px;">Karya eksklusif untuk member khusus & admin — tidak tampil di etalase publik.</p>
+      <div class="grid">${items.map(p=>productCardHtml(p, popularIds)).join('') || emptyIllustrated(t('empty_karya'))}</div>
+    `;
+    wireScopeTabs(el);
+    wireKhususDropdown(el);
+    return;
+  }
+
   // "what's new" eagerly loads replies for every visible thread so sorting by
   // last activity (and the "new reply" indicator) is accurate, not just a guess
   // based on thread creation time.
@@ -2967,9 +2994,9 @@ async function renderThreadList(el){
   searchEl.focus();
   searchEl.selectionStart = searchEl.selectionEnd = searchEl.value.length;
 }
-const KHUSUS_VIEW_LABELS = { semua:'Semua', whatsnew:"What's New", 'Diskusi Khusus':'Diskusi', 'Request Only':'Request Only', 'Sharing Video':'Sharing Video', 'Sharing Gambar':'Sharing Gambar', linkfree:'Link Download Gratis' };
+const KHUSUS_VIEW_LABELS = { semua:'Semua', whatsnew:"What's New", 'Diskusi Khusus':'Diskusi', 'Request Only':'Request Only', 'Sharing Video':'Sharing Video', 'Sharing Gambar':'Sharing Gambar', linkfree:'Link Download Gratis', etalasekhusus:'Etalase Khusus' };
 function renderKhususDropdownHtml(){
-  const options = ['semua','whatsnew', ...FORUM_KHUSUS_CATS, 'linkfree'];
+  const options = ['semua','whatsnew', ...FORUM_KHUSUS_CATS, 'linkfree', 'etalasekhusus'];
   return options.map(v=>`<button class="chip ${activeKhususView===v?'active':''}" data-khususview="${escapeHtml(v)}">${escapeHtml(KHUSUS_VIEW_LABELS[v]||v)}</button>`).join('');
 }
 function wireKhususDropdown(el){
@@ -4046,7 +4073,7 @@ async function renderAdmin(){
               ${p.img ? `<img src="${escapeHtml(p.img)}" alt="" loading="lazy">` : `<span class="ky-thumb-ph">🖼</span>`}
             </div>
             <div class="admin-row-main">
-              <div class="admin-row-title">${escapeHtml(p.title)} ${p.region?REGION_FLAG[p.region]:''} ${p.blocked?'<span class="status-pill" style="background:var(--danger-tint);color:var(--danger);">Diblokir</span>':''} ${p.status==='pending'?'<span class="status-pill" style="background:var(--warn-tint);color:var(--warn);">Menunggu Persetujuan</span>':''}</div>
+              <div class="admin-row-title">${escapeHtml(p.title)} ${p.region?REGION_FLAG[p.region]:''} ${p.blocked?'<span class="status-pill" style="background:var(--danger-tint);color:var(--danger);">Diblokir</span>':''} ${p.status==='pending'?'<span class="status-pill" style="background:var(--warn-tint);color:var(--warn);">Menunggu Persetujuan</span>':''} ${p.khusus?'<span class="status-pill" style="background:var(--accent-tint);color:var(--accent);">Khusus</span>':''}</div>
               <div class="admin-row-sub"><span style="color:${kyCatColor(p.cat)}">●</span> ${catLabel(p.cat)} · ${escapeHtml(p.seller)} · 👁 ${p.views||0} · ⬇ ${p.downloads||0} · ${p.downloadUrl?'🔗':'—'}</div>
             </div>
             <div style="display:flex;gap:6px;">
@@ -4056,6 +4083,7 @@ async function renderAdmin(){
               ` : `
                 <button class="btn-secondary" data-editkarya="${p.id}">${t('admin_edit')}</button>
                 <button class="${p.blocked?'btn-warn':'btn-secondary'}" data-blockkarya="${p.id}">${p.blocked?'Buka Blokir':'Blokir'}</button>
+                <button class="${p.khusus?'btn-primary':'btn-secondary'}" style="${p.khusus?'width:auto;':''}" data-togglekhususkarya="${p.id}">${p.khusus?'✓ Khusus':'Jadikan Khusus'}</button>
               `}
               <button class="btn-danger" data-deletekarya="${p.id}">${t('btn_delete')}</button>
             </div>
@@ -4239,15 +4267,23 @@ async function renderAdmin(){
     const p = productsCache.find(x=>x.id===b.dataset.blockkarya);
     if(!p) return;
     p.blocked = !p.blocked;
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     toast(p.blocked ? 'Karya diblokir dari etalase publik' : 'Blokir dibuka', 'success');
+    renderHeadStats(); renderAdmin();
+  });
+  el.querySelectorAll('[data-togglekhususkarya]').forEach(b=>b.onclick = async ()=>{
+    const p = productsCache.find(x=>x.id===b.dataset.togglekhususkarya);
+    if(!p) return;
+    p.khusus = !p.khusus;
+    await saveProducts();
+    toast(p.khusus ? 'Dipindah ke Etalase Khusus' : 'Dikembalikan ke etalase publik', 'success');
     renderHeadStats(); renderAdmin();
   });
   el.querySelectorAll('[data-approvekarya]').forEach(b=>b.onclick = async ()=>{
     const p = productsCache.find(x=>x.id===b.dataset.approvekarya);
     if(!p) return;
     delete p.status;
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     toast('Karya disetujui, sekarang tampil di etalase', 'success');
     renderHeadStats(); renderAdmin();
   });
@@ -4256,7 +4292,7 @@ async function renderAdmin(){
     if(!p) return;
     openConfirm('Tolak karya ini?', `"${p.title}" akan dihapus permanen dan tidak masuk etalase.`, t('confirm_delete_permanent'), async ()=>{
       productsCache = productsCache.filter(x=>x.id!==p.id);
-      await sSet('karya-products', productsCache, true);
+      await saveProducts();
       toast('Karya ditolak & dihapus', 'success');
       renderHeadStats(); renderAdmin();
     });
@@ -4265,7 +4301,7 @@ async function renderAdmin(){
     const p = productsCache.find(x=>x.id===b.dataset.deletekarya);
     openConfirm(t('confirm_delete_karya_title'), t('confirm_delete_karya_msg',{title:p.title}), t('confirm_delete_permanent'), async ()=>{
       productsCache = productsCache.filter(x=>x.id!==p.id);
-      await sSet('karya-products', productsCache, true);
+      await saveProducts();
       if(activeProductId===p.id) activeProductId=null;
       toast(t('toast_karya_deleted'), 'success');
       renderHeadStats(); renderAdmin();
@@ -4373,7 +4409,7 @@ async function kyBulkDelete(){
   openConfirm('Hapus karya terpilih?', `${kySelected.size} karya akan dihapus permanen.`, t('confirm_delete_permanent'), async ()=>{
     productsCache = productsCache.filter(p=>!kySelected.has(p.id));
     kySelected.clear();
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     toast('Karya terpilih dihapus', 'success');
     renderHeadStats(); renderAdmin();
   });
@@ -4433,7 +4469,7 @@ async function kyDoImport(){
     productsCache.push({id, views:0, downloads:0, ts:now, ...r});
     await ensureRating(id, {sum:0,count:0});
   }
-  await sSet('karya-products', productsCache, true);
+  await saveProducts();
   kyCloseImport();
   toast(`Import selesai — ${kyImportRows.length} karya ditambah`, 'success');
   renderHeadStats(); renderAdmin();
@@ -4535,7 +4571,7 @@ function openSelfKaryaForm(){
     };
     productsCache.push(product);
     await ensureRating(newId, {sum:0,count:0});
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     close();
     toast('Karya terkirim — menunggu persetujuan admin', 'success');
   };
@@ -4563,6 +4599,9 @@ function openKaryaForm(id){
       <div class="field"><label for="kfSize">${t('field_karya_size')}</label><input id="kfSize" value="${existing?escapeHtml(existing.size):''}"></div>
       <div class="field"><label for="kfDesc">${t('field_karya_desc')}</label><input id="kfDesc" value="${existing?escapeHtml(existing.desc):''}"></div>
       <div class="field"><label for="kfDownload">${t('field_karya_download')}</label><input id="kfDownload" value="${existing?escapeHtml(existing.downloadUrl||''):''}"></div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin:-4px 0 14px;">
+        <input type="checkbox" id="kfKhusus" ${existing&&existing.khusus?'checked':''}> Etalase Khusus — hanya tampil untuk member khusus & admin
+      </label>
       <button class="btn-primary" id="kfSubmit">${t('btn_save_karya')}</button>
     </div>
   `;
@@ -4585,6 +4624,7 @@ function openKaryaForm(id){
       desc: document.getElementById('kfDesc').value.trim(),
       downloadUrl: document.getElementById('kfDownload').value.trim(),
       img: document.getElementById('kfImg').value.trim(),
+      khusus: document.getElementById('kfKhusus').checked,
     };
     if(existing){
       Object.assign(existing, data);
@@ -4594,7 +4634,7 @@ function openKaryaForm(id){
       productsCache.push(product);
       await ensureRating(newId, {sum:0,count:0});
     }
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     close();
     toast(t('toast_karya_saved'), 'success');
     renderHeadStats(); renderKarya(); renderAdmin();
@@ -4683,6 +4723,7 @@ function backToThreadList(){
   pushRoute();
 }
 async function goProduct(id){
+  activeTopTab = 'karya';
   activeProductId = id;
   activeCreatorHandle = null;
   activeProductTab = 'overview';
@@ -4692,7 +4733,7 @@ async function goProduct(id){
   window.scrollTo({top:0});
   if(p){
     p.views = (p.views||0)+1;
-    await sSet('karya-products', productsCache, true);
+    await saveProducts();
     recentlyViewedCache = [id, ...recentlyViewedCache.filter(x=>x!==id)].slice(0,12);
     await sSet('recently-viewed', recentlyViewedCache, false);
   }
