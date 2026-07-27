@@ -10,7 +10,7 @@
 <meta property="og:site_name" content="BILIK">
 <meta property="og:title" content="BILIK — Etalase & Forum Karya Digital">
 <meta property="og:description" content="Jelajahi arsip foto & video dari kreator independen, beri rating, dan diskusi langsung di forum komunitas.">
-<meta name="theme-color" content="#FAF7F1">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%235B4FE8'/%3E%3Ctext x='12' y='17' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='bold' font-size='13'%3EB%3C/text%3E%3C/svg%3E">
 <title>BILIK — Etalase & Forum Karya Digital</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -19,12 +19,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#FAF7F1; --panel:#FFFFFF; --panel-2:#F1EBDF; --border:#E8DFCE;
-    --ink:#1B1A22; --muted:#726C63;
-    --accent:#5B4FE8; --accent-dark:#4238C4; --accent-tint:#ECEAFC;
-    --warn:#D98C1F; --warn-tint:#FBEFDC;
-    --danger:#E14F4A; --danger-tint:#FBEAE8;
-    --success:#1E8F5F; --success-tint:#E3F5EC;
+    --bg:#FFFFFF; --panel:#FFFFFF; --panel-2:#F2F2F2; --border:#DDDDDD;
+    --ink:#111111; --muted:#6B6B6B;
+    --accent:#111111; --accent-dark:#000000; --accent-tint:#EDEDED;
+    --warn:#4A4A4A; --warn-tint:#EFEFEF;
+    --danger:#1A1A1A; --danger-tint:#ECECEC;
+    --success:#2E2E2E; --success-tint:#EFEFEF;
+
+    /* constant (non-theme-flipping) fills — for solid buttons/badges whose text color is hardcoded
+       to white or dark, so the fill must stay dark/light regardless of light/dark theme */
+    --fill:#1C1C1C; --fill-dark:#000000; --fill-light:#D6D6D6; --on-fill-light:#141414;
 
     /* spacing scale — every margin/padding/gap in new components pulls from this */
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
@@ -41,26 +45,26 @@
     --e4:0 20px 48px -16px rgba(27,26,34,0.18), 0 4px 10px rgba(27,26,34,0.07);
     --e5:0 32px 72px -20px rgba(27,26,34,0.24);
     --shadow:var(--e3); /* legacy alias */
-    --shadow-accent:0 10px 26px -8px rgba(91,79,232,0.28);
+    --shadow-accent:0 10px 26px -8px rgba(17,17,17,0.28);
 
     /* motion — 150ms for micro-interactions (hover/focus), 250ms for layout/page transitions */
     --dur-fast:150ms; --dur-base:200ms; --dur-slow:250ms;
     --ease:cubic-bezier(.22,.85,.32,1);
   }
   html[data-theme="dark"]{
-    --bg:#141219; --panel:#1E1B26; --panel-2:#262230; --border:#332D40;
-    --ink:#F4F1EC; --muted:#9C94A8;
-    --accent:#8B7FFF; --accent-dark:#6D60E8; --accent-tint:rgba(139,127,255,0.16);
-    --warn:#E8B04C; --warn-tint:rgba(232,176,76,0.14);
-    --danger:#F0726D; --danger-tint:rgba(240,114,109,0.14);
-    --success:#4FCB8F; --success-tint:rgba(79,203,143,0.14);
+    --bg:#0A0A0A; --panel:#141414; --panel-2:#1E1E1E; --border:#333333;
+    --ink:#F5F5F5; --muted:#A0A0A0;
+    --accent:#F5F5F5; --accent-dark:#FFFFFF; --accent-tint:rgba(245,245,245,0.12);
+    --warn:#C9C9C9; --warn-tint:rgba(255,255,255,0.08);
+    --danger:#D9D9D9; --danger-tint:rgba(255,255,255,0.08);
+    --success:#CFCFCF; --success-tint:rgba(255,255,255,0.08);
     --e1:0 1px 2px rgba(0,0,0,0.3);
     --e2:0 4px 12px -4px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
     --e3:0 12px 32px -10px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.3);
     --e4:0 22px 52px -16px rgba(0,0,0,0.6), 0 4px 10px rgba(0,0,0,0.35);
     --e5:0 36px 80px -20px rgba(0,0,0,0.65);
     --shadow:var(--e3);
-    --shadow-accent:0 10px 26px -8px rgba(139,127,255,0.32);
+    --shadow-accent:0 10px 26px -8px rgba(245,245,245,0.28);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -75,7 +79,7 @@
   }
   h1,h2,h3,.display{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-  .skip-link{position:absolute;top:-48px;left:8px;background:var(--accent);color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;font-size:13px;z-index:1000;transition:top .2s var(--ease);}
+  .skip-link{position:absolute;top:-48px;left:8px;background:var(--fill);color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;font-size:13px;z-index:1000;transition:top .2s var(--ease);}
   .skip-link:focus{top:8px;}
   .mono{font-family:'IBM Plex Mono',monospace;}
   a{color:inherit;}
@@ -93,7 +97,7 @@
   .lm-scope{
     --lm-bg:var(--bg); --lm-bg-2:var(--panel-2); --lm-panel:var(--panel); --lm-panel-2:var(--panel-2);
     --lm-line:var(--border); --lm-line-soft:var(--border);
-    --lm-accent:var(--accent); --lm-accent-dim:var(--accent-dark);
+    --lm-accent:var(--accent); --lm-accent-dim:var(--accent-dark); --lm-accent-fill:var(--fill-light);
     --lm-text:var(--ink); --lm-muted:var(--muted);
     --lm-green:var(--success); --lm-red:var(--danger); --lm-amber:var(--warn);
     background:transparent; color:var(--lm-text); border-radius:var(--r-lg);
@@ -110,8 +114,8 @@
   .lm-search input{width:220px;}
   .lm-count-info{font-size:11.5px; color:var(--lm-muted); margin-left:auto;}
   .lm-btn{border:1px solid var(--lm-line); background:var(--lm-panel-2); color:var(--lm-text); padding:8px 14px; border-radius:var(--r-sm); font-size:12.5px; font-weight:600; cursor:pointer;}
-  .lm-btn.primary{background:var(--lm-accent); border-color:var(--lm-accent); color:#0a0a14;}
-  .lm-btn.danger{background:var(--lm-red); border-color:var(--lm-red); color:#1a0a0a;}
+  .lm-btn.primary{background:var(--lm-accent-fill); border-color:var(--lm-accent-fill); color:var(--on-fill-light);}
+  .lm-btn.danger{background:var(--lm-accent-fill); border-color:var(--lm-accent-fill); color:var(--on-fill-light);}
   .lm-btn.ghost{background:transparent;}
   .lm-table-wrap{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-md); overflow-x:auto;}
   .lm-table-wrap table{width:100%; border-collapse:collapse; font-size:12.5px;}
@@ -126,7 +130,7 @@
   .lm-iconbtn:hover{border-color:var(--lm-accent); color:var(--lm-accent);}
   .lm-pager{display:flex; gap:4px; margin-top:var(--sp-3); flex-wrap:wrap;}
   .lm-pg{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-muted); width:28px; height:28px; border-radius:6px; font-size:11.5px; cursor:pointer;}
-  .lm-pg.active{background:var(--lm-accent); border-color:var(--lm-accent); color:#0a0a14;}
+  .lm-pg.active{background:var(--lm-accent-fill); border-color:var(--lm-accent-fill); color:var(--on-fill-light);}
   .lm-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center;}
   .lm-modal-overlay.show{display:flex;}
   .lm-modal{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-lg); width:min(420px,92vw); max-height:88vh; overflow:auto;}
@@ -162,7 +166,7 @@
   .top-tab:hover{color:var(--ink);}
   .top-tab.active{background:var(--ink);color:var(--bg);}
   .top-tab.admin-tab{color:var(--warn);}
-  .top-tab.admin-tab.active{background:var(--warn);color:#1B1A22;}
+  .top-tab.admin-tab.active{background:var(--fill-light);color:var(--on-fill-light);}
   .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
   .icon-btn{background:var(--panel);border:1px solid var(--border);color:var(--ink);width:44px;height:44px;border-radius:14px;font-size:17px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);}
   .icon-btn:hover{border-color:var(--accent);}
@@ -211,21 +215,11 @@
   .rating-line{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);}
   .stars{color:var(--ink);letter-spacing:1px;font-size:11px;opacity:.55;}
   .detail-btn{width:100%;margin-top:11px;padding:10px;border-radius:12px;background:var(--ink);color:var(--bg);border:none;font-size:12.5px;font-weight:700;}
-  .detail-btn:hover{background:var(--accent);color:#fff;}
+  .detail-btn:hover{background:var(--fill);color:#fff;}
 
   .side-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow);}
   .side-card h3{margin:0 0 4px;font-size:15.5px;}
   .side-sub{font-size:11.5px;color:var(--muted);margin-bottom:12px;}
-  .support-btn{width:100%;background:var(--accent);color:#fff;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:13px;box-shadow:var(--shadow-accent);}
-  .support-btn:hover{background:var(--accent-dark);}
-  .supporter-row{display:flex;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);}
-  .supporter-row:last-child{border-bottom:none;}
-  .supporter-text{font-size:12px;line-height:1.5;}
-  .supporter-text b{font-weight:700;}
-  .supporter-amt{color:var(--accent-dark);font-weight:700;font-family:'IBM Plex Mono',monospace;}
-  html[data-theme="dark"] .supporter-amt{color:var(--accent);}
-  .supporter-msg{color:var(--muted);font-size:11px;margin-top:2px;font-style:italic;}
-  .supporter-time{font-size:10px;color:var(--muted);margin-top:2px;}
 
   .overlay{position:fixed;inset:0;background:rgba(20,18,25,0.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
   .overlay.open{display:flex;}
@@ -253,7 +247,7 @@
   .star-picker button{font-size:20px;cursor:pointer;color:var(--border);background:none;border:none;padding:2px;line-height:1;}
   .star-picker button.on{color:var(--warn);}
   .star-picker button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
-  .btn-primary{padding:13px 20px;border-radius:14px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:13.5px;width:100%;box-shadow:var(--shadow-accent);}
+  .btn-primary{padding:13px 20px;border-radius:14px;border:none;background:var(--fill);color:#fff;font-weight:700;font-size:13.5px;width:100%;box-shadow:var(--shadow-accent);}
   .btn-primary:hover{background:var(--accent-dark);}
   .btn-secondary{padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--panel);color:var(--ink);font-weight:700;font-size:12.5px;}
   .btn-secondary:hover{border-color:var(--accent);}
@@ -261,8 +255,8 @@
   .btn-warn{padding:9px 14px;border-radius:12px;border:1px solid var(--warn);background:var(--warn-tint);color:var(--warn);font-weight:700;font-size:12px;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:14px;font-size:12.5px;z-index:200;opacity:0;pointer-events:none;transition:opacity .25s var(--ease), transform .25s var(--ease);display:flex;align-items:center;gap:8px;max-width:88vw;box-shadow:0 16px 40px -12px rgba(0,0,0,.35);}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
-  .toast.success{background:var(--accent-dark);color:#fff;}
-  .toast.error{background:var(--danger);color:#fff;}
+  .toast.success{background:var(--fill-dark);color:#fff;}
+  .toast.error{background:var(--fill);color:#fff;}
   .toast-icon{font-weight:700;flex-shrink:0;}
 
   .search-input{background:var(--panel);border:1px solid var(--border);color:var(--ink);border-radius:12px;padding:10px 14px;font-size:12.5px;min-width:200px;}
@@ -275,7 +269,7 @@
   .confirm-actions button{flex:1;}
 
   .forum-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
-  .new-thread-btn{background:var(--accent);color:#fff;border:none;font-weight:700;font-size:13px;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow-accent);}
+  .new-thread-btn{background:var(--fill);color:#fff;border:none;font-weight:700;font-size:13px;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow-accent);}
   .new-thread-btn:hover{background:var(--accent-dark);}
   .thread-list{display:flex;flex-direction:column;gap:10px;}
   .thread-row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);transition:transform .18s var(--ease);}
@@ -400,7 +394,7 @@
   .video-play-badge{position:absolute;bottom:10px;right:10px;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:9px;padding-left:1px;}
   .badge-row{position:absolute;bottom:8px;left:8px;display:flex;gap:5px;flex-wrap:wrap;}
   .badge-new{background:var(--ink);color:var(--bg);font-size:9px;font-weight:800;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;}
-  .badge-popular{background:var(--warn);color:#1B1A22;font-size:9px;font-weight:800;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;}
+  .badge-popular{background:var(--fill-light);color:var(--on-fill-light);font-size:9px;font-weight:800;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;}
   .download-btn{width:100%;margin-top:10px;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--panel-2);color:var(--ink);font-weight:700;font-size:12.5px;}
   .download-btn:hover{border-color:var(--accent);}
   .download-btn:disabled{opacity:.55;cursor:not-allowed;}
@@ -411,7 +405,7 @@
   .scope-tab{border:1px solid var(--border);background:var(--panel);color:var(--muted);padding:9px 16px;border-radius:999px;font-size:12.5px;font-weight:700;}
   .scope-tab:hover{border-color:var(--accent);color:var(--ink);}
   .scope-tab.active{background:var(--ink);border-color:var(--ink);color:var(--bg);}
-  .whatsnew-badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--accent);color:#fff;margin-left:6px;text-transform:uppercase;}
+  .whatsnew-badge{font-size:9px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--fill);color:#fff;margin-left:6px;text-transform:uppercase;}
   .member-promo{background:linear-gradient(155deg,var(--accent-tint),var(--panel));border:1px solid var(--accent);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow-accent);}
   .member-promo h3{margin:0 0 6px;font-size:15.5px;}
   .member-promo p{margin:0 0 12px;font-size:12px;color:var(--muted);line-height:1.55;}
@@ -457,10 +451,10 @@
 
   /* ---- Featured creator ---- */
   .featured-creator{display:flex;gap:var(--sp-6);align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-6);box-shadow:var(--e2);flex-wrap:wrap;}
-  .fc-avatar{width:88px;height:88px;border-radius:var(--r-lg);background:linear-gradient(135deg,var(--accent),var(--accent-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;flex-shrink:0;box-shadow:var(--shadow-accent);}
+  .fc-avatar{width:88px;height:88px;border-radius:var(--r-lg);background:linear-gradient(135deg,var(--fill),var(--fill-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;flex-shrink:0;box-shadow:var(--shadow-accent);}
   .fc-body{flex:1;min-width:220px;}
   .fc-name-row{display:flex;align-items:center;gap:7px;font-size:19px;font-weight:700;font-family:'Bricolage Grotesque',sans-serif;}
-  .verified-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:var(--accent);color:#fff;border-radius:50%;font-size:11px;flex-shrink:0;}
+  .verified-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:var(--fill);color:#fff;border-radius:50%;font-size:11px;flex-shrink:0;}
   .fc-tagline{font-size:13px;color:var(--muted);margin:4px 0 var(--sp-4);}
   .fc-stats{display:flex;gap:var(--sp-6);flex-wrap:wrap;}
   .fc-stats b{font-size:16px;font-weight:700;display:block;font-family:'IBM Plex Mono',monospace;}
@@ -518,21 +512,16 @@
   .highlight-meta{font-size:11px;color:var(--muted);display:flex;gap:8px;align-items:center;}
 
   /* ---- Testimonials ---- */
-  .testimonial-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-5);box-shadow:var(--e1);}
-  .testimonial-quote{font-size:13.5px;line-height:1.6;color:var(--ink);font-style:italic;margin-bottom:var(--sp-4);}
-  .testimonial-quote::before{content:'"';}
-  .testimonial-quote::after{content:'"';}
-  .testimonial-author{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;}
 
   /* ---- CTA banner ---- */
   .cta-banner{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5);}
   @media(max-width:700px){.cta-banner{grid-template-columns:1fr;}}
   .cta-tile{border-radius:var(--r-xl);padding:var(--sp-6);position:relative;overflow:hidden;}
-  .cta-tile.primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;}
+  .cta-tile.primary{background:linear-gradient(135deg,var(--fill),var(--fill-dark));color:#fff;}
   .cta-tile.secondary{background:var(--panel-2);border:1px solid var(--border);color:var(--ink);}
   .cta-tile h3{margin:0 0 8px;font-size:19px;font-family:'Bricolage Grotesque',sans-serif;}
   .cta-tile p{margin:0 0 var(--sp-4);font-size:13px;opacity:.9;max-width:340px;}
-  .cta-tile.primary .btn-secondary{background:#fff;color:var(--accent-dark);border:none;}
+  .cta-tile.primary .btn-secondary{background:#fff;color:var(--fill-dark);border:none;}
 
   /* ---- Social proof widgets ---- */
   .social-proof-strip{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-4);}
@@ -562,7 +551,7 @@
   .maintenance-icon{font-size:48px;margin-bottom:var(--sp-4);}
   .maintenance-box h2{margin:0 0 10px;font-family:'Bricolage Grotesque',sans-serif;font-size:22px;}
   .maintenance-box p{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 20px;}
-  .notif-badge{position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+  .notif-badge{position:absolute;top:4px;right:4px;background:var(--fill);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
   .notif-row{display:flex;gap:10px;padding:11px 8px;border-radius:var(--r-sm);cursor:pointer;align-items:flex-start;}
   .notif-row:hover{background:var(--panel-2);}
   .notif-row.unread{background:var(--accent-tint);}
@@ -696,7 +685,6 @@
   </div>
 </footer>
 
-<div class="overlay" id="supportOverlay"><div class="modal" id="supportModal" style="max-width:400px;" role="dialog" aria-modal="true"></div></div>
 <div class="overlay" id="threadFormOverlay"><div class="modal" id="threadFormModal" style="max-width:560px;" role="dialog" aria-modal="true"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -728,7 +716,6 @@ const THREAD_MAX_CHARS = 5000;
 
 const SEED_THREADS = [];
 const SEED_REPLIES = {};
-const SEED_SUPPORTERS = [];
 
 /* ---------------- i18n ---------------- */
 // Scope note: this dictionary covers UI chrome (labels, buttons, messages) only.
@@ -743,22 +730,17 @@ const STRINGS = {
     skip_link:'Lewati ke konten utama', lang_switch_label:'Switch language to English',
     page_title:'Etalase & Forum Karya Digital',
     page_subtitle:'Jelajahi arsip foto & video dari kreator independen, beri rating, dan diskusi langsung di forum komunitas.',
-    stat_karya:'Karya', stat_rating:'Rating rata-rata', stat_thread:'Thread aktif', stat_pendukung:'Pendukung',
+    stat_karya:'Karya', stat_rating:'Rating rata-rata', stat_thread:'Thread aktif',
     filter_all_type:'Semua Tipe', filter_photo:'Foto', filter_video:'Video',
     cat_semua:'Semua', cat_arsitektur:'Arsitektur', cat_alam:'Alam', cat_preset:'Preset',
     cat_motion:'Motion Graphics', cat_kuliner:'Kuliner', cat_urban:'Urban', cat_potret:'Potret',
     card_view:'Lihat Karya', empty_karya:'Tidak ada karya di kategori ini.', modal_by:'oleh',
-    side_support_title:'Dukung Kreator', side_support_sub:'Kirim dukungan nominal bebas ke Studio GARIS',
-    side_support_btn:'Kirim Dukungan', side_pendukung_title:'Pendukung Terbaru',
-    supporter_gives:'{name} memberi dukungan {amount}', empty_pendukung:'Belum ada pendukung.',
     modal_resolution:'Resolusi', modal_format:'Format', modal_size:'Ukuran',
     modal_rate_label:'Beri rating:',
     modal_rating_count:'dari {count} rating', modal_star_aria:'Beri rating {n} dari 5 bintang',
     toast_thanks_rating:'Terima kasih, rating {n}★ tersimpan!',
-    support_modal_title:'Dukung Studio GARIS', support_amount_label:'Nominal (Rp)',
-    support_name_label:'Nama kamu', support_msg_label:'Pesan (opsional)',
-    support_submit_btn:'Kirim Dukungan (Demo)', support_disclaimer:'Simulasi — belum terhubung ke pembayaran sungguhan.',
-    toast_blocked_generic:'Akun ini diblokir oleh admin.', toast_thanks_support:'Terima kasih sudah mendukung!',
+    toast_blocked_generic:'Akun ini diblokir oleh admin.',
+    side_tips_title:'Tips Menjelajah', side_tips_body:'Gunakan filter tipe, kategori, dan wilayah untuk mempersempit pencarian karya yang kamu cari.',
     forum_search_placeholder:'Cari judul, isi, atau penulis…', forum_new_thread_btn:'+ Buat Thread Baru',
     forum_empty_default:'Belum ada thread di kategori ini.', forum_empty_search:'Tidak ada thread yang cocok dengan pencarian "{q}".',
     thread_pending_badge:'Menunggu Persetujuan', thread_replies_label:'balasan',
@@ -814,7 +796,7 @@ const STRINGS = {
     toast_member_revoked:'Akses member khusus {name} dicabut.',
     back_to_karya:'← Kembali ke Karya', verified:'Terverifikasi',
     hero_eyebrow:'Marketplace kreator independen', hero_title:'Temukan &amp; jual karya foto-video terbaik dari kreator Nusantara',
-    hero_sub:'Jelajahi ribuan arsip visual berkualitas, dukung kreator favoritmu, dan diskusi langsung di komunitas.',
+    hero_sub:'Jelajahi ribuan arsip visual berkualitas, temukan kreator favoritmu, dan diskusi langsung di komunitas.',
     hero_search_ph:'Cari karya, kreator, atau diskusi…', hero_stat_creators:'Kreator',
     section_featured_creator:'Kreator Unggulan', featured_creator_tagline:'Kreator visual independen dengan karya berkualitas tinggi.',
     creator_followers:'Pengikut', creator_sales:'Unduhan', view_profile:'Lihat Profil',
@@ -824,7 +806,6 @@ const STRINGS = {
     section_new:'Baru Diunggah', section_new_sub:'Karya-karya terbaru dari kreator kami',
     section_all_karya:'Semua Karya',
     section_community:'Sorotan Komunitas', section_community_sub:'Diskusi paling aktif minggu ini',
-    section_testimonials:'Apa Kata Pendukung Kami',
     cta_creator_title:'Jadi Kreator di BILIK', cta_creator_desc:'Unggah karyamu, jangkau ribuan penikmat visual, dan mulai hasilkan pendapatan.',
     cta_creator_btn:'Mulai Berkarya',
     cta_member_title:'Gabung Member Khusus', cta_member_desc:'Akses forum eksklusif dan fitur tambahan sebagai member yang disetujui admin.',
@@ -892,13 +873,13 @@ const STRINGS = {
     rank_0:'Baru Gabung', rank_1:'Aktif', rank_2:'Kontributor', rank_3:'Kontributor Senior', rank_4:'Veteran', rank_5:'Legenda Bilik',
     ts_badge:'TS', confirm_cancel:'Batal', close_dialog:'Tutup dialog',
     admin_users_title:'Kelola Pengguna',
-    admin_users_sub:'Blokir akun yang melanggar aturan komunitas — akun yang diblokir tidak bisa membuat thread, balasan, atau dukungan baru.',
+    admin_users_sub:'Blokir akun yang melanggar aturan komunitas — akun yang diblokir tidak bisa membuat thread atau balasan baru.',
     admin_users_search_ph:'Cari nama pengguna…', empty_admin_users:'Tidak ada pengguna yang cocok.',
     btn_block:'Blokir', btn_unblock:'Buka Blokir', admin_contrib_rank:'{count} kontribusi · pangkat {rank}',
     admin_threads_title:'Moderasi Thread', admin_threads_sub:'Setujui thread baru sebelum tampil publik, atau hapus thread yang melanggar.',
     admin_threads_search_ph:'Cari judul atau penulis thread…', empty_admin_threads:'Tidak ada thread yang cocok.',
     btn_approve:'Setujui', btn_delete:'Hapus', btn_bulk_approve:'Setujui semua thread menunggu ({n})', status_pending:'Menunggu', status_blocked:'Diblokir',
-    confirm_block_title:'Blokir {name}?', confirm_block_msg:'Akun ini tidak akan bisa membuat thread, balasan, atau dukungan baru sampai dibuka blokirnya kembali.',
+    confirm_block_title:'Blokir {name}?', confirm_block_msg:'Akun ini tidak akan bisa membuat thread atau balasan baru sampai dibuka blokirnya kembali.',
     confirm_bulk_title:'Setujui semua thread menunggu?', confirm_bulk_msg:'Semua ({n}) thread berstatus menunggu akan langsung tayang di forum publik.',
     confirm_bulk_btn:'Setujui Semua',
     confirm_delete_thread_title:'Hapus thread ini?', confirm_delete_thread_msg:'"{title}" beserta seluruh balasannya akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.',
@@ -937,22 +918,17 @@ const STRINGS = {
     skip_link:'Skip to main content', lang_switch_label:'Ganti bahasa ke Indonesia',
     page_title:'Digital Works & Community Forum',
     page_subtitle:'Browse photo & video archives from independent creators, leave ratings, and discuss directly in the community forum.',
-    stat_karya:'Works', stat_rating:'Average rating', stat_thread:'Active threads', stat_pendukung:'Supporters',
+    stat_karya:'Works', stat_rating:'Average rating', stat_thread:'Active threads',
     filter_all_type:'All types', filter_photo:'Photo', filter_video:'Video',
     cat_semua:'All', cat_arsitektur:'Architecture', cat_alam:'Nature', cat_preset:'Preset',
     cat_motion:'Motion Graphics', cat_kuliner:'Food', cat_urban:'Urban', cat_potret:'Portrait',
     card_view:'View Work', empty_karya:'No works in this category.', modal_by:'by',
-    side_support_title:'Support the Creator', side_support_sub:'Send a free-form amount to Studio GARIS',
-    side_support_btn:'Send Support', side_pendukung_title:'Recent Supporters',
-    supporter_gives:'{name} gave {amount}', empty_pendukung:'No supporters yet.',
     modal_resolution:'Resolution', modal_format:'Format', modal_size:'Size',
     modal_rate_label:'Rate this:',
     modal_rating_count:'from {count} ratings', modal_star_aria:'Rate {n} out of 5 stars',
     toast_thanks_rating:'Thanks, your {n}★ rating was saved!',
-    support_modal_title:'Support Studio GARIS', support_amount_label:'Amount (Rp)',
-    support_name_label:'Your name', support_msg_label:'Message (optional)',
-    support_submit_btn:'Send Support (Demo)', support_disclaimer:'Simulation — not yet connected to real payments.',
-    toast_blocked_generic:'This account has been blocked by an admin.', toast_thanks_support:'Thanks for your support!',
+    toast_blocked_generic:'This account has been blocked by an admin.',
+    side_tips_title:'Browsing Tips', side_tips_body:'Use the type, category, and region filters to narrow down the works you are looking for.',
     forum_search_placeholder:'Search title, content, or author…', forum_new_thread_btn:'+ New Thread',
     forum_empty_default:'No threads in this category yet.', forum_empty_search:'No threads match the search "{q}".',
     thread_pending_badge:'Pending Approval', thread_replies_label:'replies',
@@ -1008,7 +984,7 @@ const STRINGS = {
     toast_member_revoked:"{name}'s exclusive access revoked.",
     back_to_karya:'← Back to Works', verified:'Verified',
     hero_eyebrow:'Independent creator marketplace', hero_title:'Discover &amp; sell the best photo-video works from Nusantara creators',
-    hero_sub:'Browse thousands of quality visual archives, support your favorite creators, and discuss directly in the community.',
+    hero_sub:'Browse thousands of quality visual archives, discover your favorite creators, and discuss directly in the community.',
     hero_search_ph:'Search works, creators, or discussions…', hero_stat_creators:'Creators',
     section_featured_creator:'Featured Creator', featured_creator_tagline:'An independent visual creator with high-quality work.',
     creator_followers:'Followers', creator_sales:'Downloads', view_profile:'View Profile',
@@ -1018,7 +994,6 @@ const STRINGS = {
     section_new:'New Uploads', section_new_sub:'The latest works from our creators',
     section_all_karya:'All Works',
     section_community:'Community Highlights', section_community_sub:"This week's most active discussions",
-    section_testimonials:'What Our Supporters Say',
     cta_creator_title:'Become a Creator on BILIK', cta_creator_desc:'Upload your work, reach thousands of visual enthusiasts, and start earning.',
     cta_creator_btn:'Start Creating',
     cta_member_title:'Join Exclusive Membership', cta_member_desc:'Unlock the exclusive forum and extra features as an admin-approved member.',
@@ -1086,13 +1061,13 @@ const STRINGS = {
     rank_0:'New Member', rank_1:'Active', rank_2:'Contributor', rank_3:'Senior Contributor', rank_4:'Veteran', rank_5:'Bilik Legend',
     ts_badge:'OP', confirm_cancel:'Cancel', close_dialog:'Close dialog',
     admin_users_title:'Manage Users',
-    admin_users_sub:'Block accounts that violate community rules — blocked accounts cannot create new threads, replies, or support.',
+    admin_users_sub:'Block accounts that violate community rules — blocked accounts cannot create new threads or replies.',
     admin_users_search_ph:'Search username…', empty_admin_users:'No matching users.',
     btn_block:'Block', btn_unblock:'Unblock', admin_contrib_rank:'{count} contributions · rank {rank}',
     admin_threads_title:'Thread Moderation', admin_threads_sub:'Approve new threads before they go public, or delete threads that break the rules.',
     admin_threads_search_ph:'Search thread title or author…', empty_admin_threads:'No matching threads.',
     btn_approve:'Approve', btn_delete:'Delete', btn_bulk_approve:'Approve all pending threads ({n})', status_pending:'Pending', status_blocked:'Blocked',
-    confirm_block_title:'Block {name}?', confirm_block_msg:'This account will not be able to create threads, replies, or support until unblocked.',
+    confirm_block_title:'Block {name}?', confirm_block_msg:'This account will not be able to create threads or replies until unblocked.',
     confirm_bulk_title:'Approve all pending threads?', confirm_bulk_msg:'All ({n}) pending threads will go live on the public forum immediately.',
     confirm_bulk_btn:'Approve All',
     confirm_delete_thread_title:'Delete this thread?', confirm_delete_thread_msg:'"{title}" and all its replies will be permanently deleted. This cannot be undone.',
@@ -1144,7 +1119,7 @@ const FCAT_KEYS = {
   'Sharing Konten Khusus':'fcat_sharing_khusus',
 };
 function catLabel(cat){ return cat==='Semua' ? t('cat_semua') : t(CAT_KEYS[cat]||cat); }
-const KY_CAT_PALETTE = { violet:'#8B7FFF', green:'#4FCB8F', amber:'#E8B04C', red:'#F0726D', blue:'#5B9FE8', pink:'#E87FC0', gray:'#9C94A8' };
+const KY_CAT_PALETTE = { violet:'#3A3A3A', green:'#565656', amber:'#727272', red:'#2A2A2A', blue:'#8E8E8E', pink:'#4E4E4E', gray:'#9C9C9C' };
 function kyCatColor(cat){ const key = (KY_SETTINGS.catColors||{})[cat]; return KY_CAT_PALETTE[key] || KY_CAT_PALETTE.gray; }
 function kyDistinctCats(){ return [...new Set((productsCache||[]).map(p=>p.cat).filter(Boolean))].sort(); }
 function fcatLabel(cat){ return cat==='Semua' ? t('fcat_semua') : t(FCAT_KEYS[cat]||cat); }
@@ -1280,7 +1255,6 @@ let ratingsCache = {};
 let threadsCache = null;
 let repliesCache = {};
 let FORUM_SETTINGS = { khususRegions: [] };
-let supportersCache = null;
 let blockedCache = [];
 let reportsCache = [];
 let productsCache = null;
@@ -1324,7 +1298,6 @@ async function getReplies(tid){
   if(!r) r = SEED_REPLIES[tid] ? SEED_REPLIES[tid] : [];
   repliesCache[tid]=r; return r;
 }
-async function ensureSupporters(){ let s=await sGet('supporters',true); if(!s){ s=SEED_SUPPORTERS; await sSet('supporters',s,true); } supportersCache=s; }
 async function ensureBlocked(){ let b=await sGet('blocked-users',true); if(!b){ b=[]; } blockedCache=b; }
 async function ensureReports(){ let r=await sGet('reports',true); if(!r){ r=[]; } reportsCache=r; }
 async function ensureMembership(){
@@ -1686,7 +1659,6 @@ function renderHeadStats(){
     <div class="hstat"><b>${productsCache.length}</b><span>${t('stat_karya')}</span></div>
     <div class="hstat"><b>${totalRating.toFixed(1)}</b><span>${t('stat_rating')}</span></div>
     <div class="hstat"><b>${approvedThreads}</b><span>${t('stat_thread')}</span></div>
-    <div class="hstat"><b>${(supportersCache||[]).length}</b><span>${t('stat_pendukung')}</span></div>
   `;
 }
 
@@ -1823,7 +1795,6 @@ function renderHome(){
   const bentoItems = [...productsCache].sort((a,b)=>((b.views||0)+(b.downloads||0))-((a.views||0)+(a.downloads||0))).slice(0,7);
   const cats = productCategories().filter(c=>c!=='Semua');
   const activeThreadsSorted = [...visibleThreads()].sort((a,b)=>lastActivityTs(b)-lastActivityTs(a)).slice(0,3);
-  const testimonials = (supportersCache||[]).filter(s=>s.message).slice(0,3);
 
   el.innerHTML = `
     <section class="hero crop-marks">
@@ -1838,7 +1809,6 @@ function renderHome(){
         <div><b>${productsCache.length}</b><span>${t('stat_karya')}</span></div>
         <div><b>${creatorHandles().length}</b><span>${t('hero_stat_creators')}</span></div>
         <div><b>${totalRating.toFixed(1)}</b><span>${t('stat_rating')}</span></div>
-        <div><b>${(supportersCache||[]).length}</b><span>${t('stat_pendukung')}</span></div>
       </div>
     </section>
 
@@ -1896,13 +1866,8 @@ function renderHome(){
         </div>
         <div>
           <div class="side-card">
-            <h3 id="sideSupportTitle">${t('side_support_title')}</h3>
-            <div class="side-sub" id="sideSupportSub">${t('side_support_sub')}</div>
-            <button class="support-btn" id="openSupportBtn">${t('side_support_btn')}</button>
-          </div>
-          <div class="side-card">
-            <h3 id="sidePendukungTitle">${t('side_pendukung_title')}</h3>
-            <div id="supporterFeed"></div>
+            <h3>${t('side_tips_title')}</h3>
+            <div class="side-sub">${t('side_tips_body')}</div>
           </div>
         </div>
       </div>
@@ -1922,18 +1887,6 @@ function renderHome(){
       </div>
     </section>` : ''}
 
-    ${testimonials.length ? `
-    <section class="home-section">
-      <div class="home-section-head"><h2>${t('section_testimonials')}</h2></div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">
-        ${testimonials.map(s=>`
-          <div class="testimonial-card">
-            <div class="testimonial-quote">${escapeHtml(s.message)}</div>
-            <div class="testimonial-author"><div class="avatar">${initials(s.name)}</div>${escapeHtml(s.name)}</div>
-          </div>
-        `).join('')}
-      </div>
-    </section>` : ''}
 
     <section class="home-section">
       <div class="cta-banner">
@@ -2080,21 +2033,6 @@ function renderKarya(){
   document.getElementById('productGrid').innerHTML = list.map(p=>productCardHtml(p, popularIds)).join('') || (karyaSearchQuery.trim() ? emptyIllustrated(t('forum_empty_search',{q:escapeHtml(karyaSearchQuery)}), {kind:'noresults', desc:t('search_no_results_desc'), ctaHtml:`<button class="btn-secondary" id="clearKaryaSearchBtn">${t('clear_search_btn')}</button>`}) : emptyIllustrated(t('empty_karya')));
   const clearBtn = document.getElementById('clearKaryaSearchBtn');
   if(clearBtn) clearBtn.onclick = ()=>{ karyaSearchQuery=''; const si=document.getElementById('karyaSearch'); if(si) si.value=''; renderKarya(); };
-
-  renderSupporterFeed();
-}
-function renderSupporterFeed(){
-  const list = [...(supportersCache||[])].sort((a,b)=>b.ts-a.ts).slice(0,8);
-  document.getElementById('supporterFeed').innerHTML = list.map(s=>`
-    <div class="supporter-row">
-      <div class="avatar" style="width:24px;height:24px;font-size:10px;">${initials(s.name)}</div>
-      <div class="supporter-text">
-        ${t('supporter_gives',{name:'<b>'+escapeHtml(s.name)+'</b>', amount:'<span class="supporter-amt">'+rupiah(s.amount)+'</span>'})}
-        ${s.message?`<div class="supporter-msg">"${escapeHtml(s.message)}"</div>`:''}
-        <div class="supporter-time">${timeAgo(s.ts)}</div>
-      </div>
-    </div>
-  `).join('') || `<div class="empty">${t('empty_pendukung')}</div>`;
 }
 
 /* ---------------- product detail page (full page, not a modal) ---------------- */
@@ -2383,35 +2321,6 @@ async function renderCreatorPage(handle){
     const nowFollowing = await toggleFollow(handle, name);
     toast(nowFollowing ? t('toast_followed',{handle}) : t('toast_unfollowed',{handle}), 'success');
     renderCreatorPage(handle);
-  };
-}
-
-/* ---------------- support modal ---------------- */
-function openSupportModal(){
-  const el = document.getElementById('supportModal');
-  el.innerHTML = `
-    <button class="modal-close" id="closeSupportBtn" aria-label="${t('close_dialog')}">✕</button>
-    <div style="padding:22px;">
-      <h3 style="margin-top:0;">${t('support_modal_title')}</h3>
-      <div class="field"><label for="supAmount">${t('support_amount_label')}</label><input type="number" id="supAmount" value="10000" min="1000" step="1000"></div>
-      ${nameFieldHtml('supName')}
-      <div class="field"><label for="supMsg">${t('support_msg_label')}</label><input id="supMsg"></div>
-      <button class="btn-primary" id="submitSupport">${t('support_submit_btn')}</button>
-      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;text-align:center;">${t('support_disclaimer')}</div>
-    </div>
-  `;
-  activateOverlay('supportOverlay');
-  document.getElementById('closeSupportBtn').onclick = ()=>deactivateOverlay('supportOverlay');
-  document.getElementById('submitSupport').onclick = async ()=>{
-    const name = resolveAuthorName('supName');
-    if(isBlocked(name)){ toast(t('toast_blocked_generic'), 'error'); return; }
-    const amount = Math.max(1000, parseInt(document.getElementById('supAmount').value,10)||10000);
-    const message = document.getElementById('supMsg').value.trim();
-    supportersCache.push({name, amount, message, ts:Date.now()});
-    await sSet('supporters', supportersCache, true);
-    deactivateOverlay('supportOverlay');
-    toast(t('toast_thanks_support'), 'success');
-    renderHeadStats(); renderSupporterFeed();
   };
 }
 
@@ -3317,7 +3226,7 @@ let adminThreadSearch = '';
 /* ---------------- Link Monitor: tabel link inti ---------------- */
 let LM_DATA = [];
 let LM_SETTINGS = { regions:[], outputs:[] };
-const LM_CAT_PALETTE = { violet:'#818cf8', green:'#34d399', amber:'#fbbf24', red:'#f87171', blue:'#60a5fa', pink:'#f472b6', gray:'#9090b0' };
+const LM_CAT_PALETTE = { violet:'#3A3A3A', green:'#565656', amber:'#727272', red:'#2A2A2A', blue:'#8E8E8E', pink:'#4E4E4E', gray:'#9C9C9C' };
 let lmLoaded = false;
 let lmFilters = { q:'', status:'', region:'', part:'' };
 let lmSort = '';
@@ -4789,10 +4698,8 @@ document.addEventListener('click', (e)=>{
   if(gotoTab){ switchTab(gotoTab); window.scrollTo({top:0, behavior:'smooth'}); return; }
   const regionFilter = e.target.closest('[data-regionfilter]')?.dataset.regionfilter;
   if(regionFilter){ activeRegion=regionFilter; renderKarya(); return; }
-  if(e.target === document.getElementById('supportOverlay')) deactivateOverlay('supportOverlay');
   if(e.target === document.getElementById('threadFormOverlay')) deactivateOverlay('threadFormOverlay');
   if(e.target === document.getElementById('searchOverlay')) deactivateOverlay('searchOverlay');
-  if(e.target.closest('#openSupportBtn')) openSupportModal();
 });
 document.addEventListener('input', (e)=>{
   if(e.target && e.target.id==='karyaSearch'){ karyaSearchQuery = e.target.value; renderKarya(); }
@@ -4818,7 +4725,6 @@ document.addEventListener('keydown', (e)=>{
   await ensureKarya();
   for(const p of productsCache){ await ensureRating(p.id, p.seed); }
   await ensureForum();
-  await ensureSupporters();
   await ensureBlocked();
   await ensureReports();
   await ensureMembership();
