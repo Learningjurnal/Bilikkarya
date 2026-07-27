@@ -3218,6 +3218,7 @@ function openThreadForm(opts){
 /* ---------------- admin panel ---------------- */
 let adminUserSearch = '';
 let adminThreadSearch = '';
+let activeAdminSection = 'koneksi'; // 'koneksi' | 'users' | 'karya' | 'linkmon'
 /* ---------------- Link Monitor: tabel link inti ---------------- */
 let LM_DATA = [];
 let LM_SETTINGS = { regions:[], outputs:[] };
@@ -3938,8 +3939,10 @@ async function renderAdmin(){
   }
   const pendingCount = threadsCache.filter(th=>th.status==='pending').length;
   await ensureBadges();
+  const secStyle = key => activeAdminSection===key ? '' : 'display:none;';
 
   el.innerHTML = `
+    <div id="adminGroupKoneksi" style="${secStyle('koneksi')}">
     <div class="admin-panel" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div>
         <h3 style="margin-bottom:2px;">${t('admin_maintenance_title')}</h3>
@@ -3947,7 +3950,7 @@ async function renderAdmin(){
       </div>
       <button class="${maintenanceMode?'btn-danger':'btn-warn'}" id="toggleMaintenanceBtn">${maintenanceMode?t('admin_maintenance_disable'):t('admin_maintenance_enable')}</button>
     </div>
-    <div class="admin-panel" id="adminSectionKoneksi" style="margin-bottom:18px;">
+    <div class="admin-panel" id="adminSectionKoneksi">
       <h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${t('admin_supabase_title')}
         <span class="status-pill" style="${_SB?'background:var(--success-tint);color:var(--success);':''}">${_SB?t('sb_status_connected'):t('sb_status_disconnected')}</span>
       </h3>
@@ -3965,7 +3968,8 @@ async function renderAdmin(){
       </div>
       <div class="demo-notice">⚠️ <span>${t('sb_rls_warning')}</span></div>
     </div>
-    <div class="admin-grid">
+    </div>
+    <div id="adminGroupUsers" class="admin-grid" style="${secStyle('users')}">
       <div class="admin-panel" id="adminSectionUsers">
         <h3>${t('admin_users_title')}</h3>
         <div class="admin-sub">${t('admin_users_sub')}</div>
@@ -4010,6 +4014,41 @@ async function renderAdmin(){
           </div>
         `).join('') || `<div class="empty">${t('empty_admin_reports')}</div>`}
       </div>
+      <div class="admin-panel" style="grid-column:1/-1;">
+        <h3>${t('admin_member_title')}</h3>
+        <div class="admin-sub">${t('admin_member_sub')}</div>
+        ${membershipRequestsCache.filter(m=>m.status==='pending').sort((a,b)=>b.ts-a.ts).map(m=>`
+          <div class="admin-row">
+            <div class="admin-row-main">
+              <div class="admin-row-title">${escapeHtml(m.name)}</div>
+              <div class="admin-row-sub">${m.message?escapeHtml(m.message)+' · ':''}${timeAgo(m.ts)}</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-warn" data-approvemember="${m.id}">${t('btn_approve')}</button>
+              <button class="btn-danger" data-rejectmember="${m.id}">${t('btn_reject')}</button>
+            </div>
+          </div>
+        `).join('') || `<div class="empty">${t('empty_member_requests')}</div>`}
+        ${approvedMembersCache.length ? `<div class="admin-sub" style="margin-top:14px;">${t('admin_member_approved_list')}</div>` : ''}
+        ${approvedMembersCache.map(name=>`
+          <div class="admin-row">
+            <div class="admin-row-main"><div class="admin-row-title">${escapeHtml(name)}</div></div>
+            <button class="btn-danger" data-revokemember="${encodeURIComponent(name)}">${t('btn_revoke')}</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="admin-panel" style="grid-column:1/-1;">
+        <h3>Kelola Region Forum Khusus</h3>
+        <div class="admin-sub">Atur daftar region yang tersedia saat member membuat thread di Forum Khusus.</div>
+        <div id="khususRegionList"></div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <input type="text" id="newKhususRegionName" placeholder="Nama region baru…" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;">
+          <button class="btn-warn" id="addKhususRegionBtn">+ Tambah</button>
+        </div>
+      </div>
+      ${renderBadgeAdminSection(users)}
+    </div>
+    <div id="adminGroupKarya" class="admin-grid" style="${secStyle('karya')}">
       <div class="admin-panel" id="adminSectionKarya" style="grid-column:1/-1;">
         <h3>${t('admin_karya_title')}</h3>
         <div class="admin-sub">${t('admin_karya_sub')}</div>
@@ -4065,39 +4104,8 @@ async function renderAdmin(){
           </div>
         </div></div>
       </div>
-      <div class="admin-panel" style="grid-column:1/-1;">
-        <h3>${t('admin_member_title')}</h3>
-        <div class="admin-sub">${t('admin_member_sub')}</div>
-        ${membershipRequestsCache.filter(m=>m.status==='pending').sort((a,b)=>b.ts-a.ts).map(m=>`
-          <div class="admin-row">
-            <div class="admin-row-main">
-              <div class="admin-row-title">${escapeHtml(m.name)}</div>
-              <div class="admin-row-sub">${m.message?escapeHtml(m.message)+' · ':''}${timeAgo(m.ts)}</div>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button class="btn-warn" data-approvemember="${m.id}">${t('btn_approve')}</button>
-              <button class="btn-danger" data-rejectmember="${m.id}">${t('btn_reject')}</button>
-            </div>
-          </div>
-        `).join('') || `<div class="empty">${t('empty_member_requests')}</div>`}
-        ${approvedMembersCache.length ? `<div class="admin-sub" style="margin-top:14px;">${t('admin_member_approved_list')}</div>` : ''}
-        ${approvedMembersCache.map(name=>`
-          <div class="admin-row">
-            <div class="admin-row-main"><div class="admin-row-title">${escapeHtml(name)}</div></div>
-            <button class="btn-danger" data-revokemember="${encodeURIComponent(name)}">${t('btn_revoke')}</button>
-          </div>
-        `).join('')}
-      </div>
-      <div class="admin-panel" style="grid-column:1/-1;">
-        <h3>Kelola Region Forum Khusus</h3>
-        <div class="admin-sub">Atur daftar region yang tersedia saat member membuat thread di Forum Khusus.</div>
-        <div id="khususRegionList"></div>
-        <div style="display:flex;gap:6px;margin-top:10px;">
-          <input type="text" id="newKhususRegionName" placeholder="Nama region baru…" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;">
-          <button class="btn-warn" id="addKhususRegionBtn">+ Tambah</button>
-        </div>
-      </div>
-      ${renderBadgeAdminSection(users)}
+    </div>
+    <div id="adminGroupLinkMon" class="admin-grid" style="${secStyle('linkmon')}">
       <div class="admin-panel" id="adminSectionLinkMon" style="grid-column:1/-1;">
         <div id="layoutLinkMon" class="lm-scope"></div>
       </div>
@@ -4681,11 +4689,9 @@ function goForumScope(scope, khususView){
   pushRoute();
   window.scrollTo({top:0});
 }
-async function goAdminSection(sectionId){
+function goAdminSection(section){
+  activeAdminSection = section;
   switchTab('admin');
-  await renderAdmin();
-  const el = document.getElementById(sectionId);
-  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
 }
 const navOpenGroups = { forum:true, khusus:true, admin:true };
 function renderSidebarNav(){
@@ -4713,10 +4719,10 @@ function renderSidebarNav(){
     <div class="nav-group nav-admin-group${g('admin')?'':' collapsed'}" id="navAdminGroup" style="display:${adminMode?'':'none'};">
       <button class="nav-group-head" data-navgroup="admin"><span>${t('nav_admin')}</span><span class="nav-caret">▾</span></button>
       <div class="nav-sub">
-        <button class="nav-item sub${activeTopTab==='admin'?' active':''}" data-navadmin="adminSectionKoneksi">Koneksi</button>
-        <button class="nav-item sub" data-navadmin="adminSectionUsers">Kelola Pengguna &amp; Thread</button>
-        <button class="nav-item sub" data-navadmin="adminSectionKarya">Kelola Karya</button>
-        <button class="nav-item sub" data-navadmin="adminSectionLinkMon">Link Download</button>
+        <button class="nav-item sub${activeTopTab==='admin'&&activeAdminSection==='koneksi'?' active':''}" data-navadmin="koneksi">Koneksi</button>
+        <button class="nav-item sub${activeTopTab==='admin'&&activeAdminSection==='users'?' active':''}" data-navadmin="users">Kelola Pengguna &amp; Thread</button>
+        <button class="nav-item sub${activeTopTab==='admin'&&activeAdminSection==='karya'?' active':''}" data-navadmin="karya">Kelola Karya</button>
+        <button class="nav-item sub${activeTopTab==='admin'&&activeAdminSection==='linkmon'?' active':''}" data-navadmin="linkmon">Link Download</button>
       </div>
     </div>
   `;
