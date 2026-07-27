@@ -104,8 +104,12 @@
     padding:0; font-family:'Inter',sans-serif; min-height:60vh;
   }
   .lm-heading{color:var(--lm-text); font-family:'Inter',sans-serif; font-size:20px; margin-bottom:var(--sp-4);}
-  .lm-kpi-row{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--sp-3); margin-bottom:var(--sp-4);}
+  .lm-kpi-row{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:var(--sp-3); margin-bottom:var(--sp-4);}
+  @media(max-width:1000px){.lm-kpi-row{grid-template-columns:repeat(4,minmax(0,1fr));}}
   @media(max-width:700px){.lm-kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .lm-kpi small{display:block;font-size:10px;color:var(--lm-muted);font-weight:600;margin-top:2px;}
+  .lm-lock{opacity:.55;font-size:11px;margin-left:4px;cursor:pointer;border:none;background:none;color:inherit;}
+  .lm-lock.on{opacity:1;}
   .lm-kpi{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-md); padding:var(--sp-3) var(--sp-4); display:flex; flex-direction:column; gap:2px;}
   .lm-kpi b{font-size:22px; font-family:'IBM Plex Mono',monospace;}
   .lm-kpi span{font-size:11px; color:var(--lm-muted); text-transform:uppercase; letter-spacing:.05em;}
@@ -147,7 +151,7 @@
   .lm-chart-label{width:110px; flex:none; color:var(--lm-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .lm-chart-bar-track{flex:1; background:var(--lm-panel-2); border-radius:6px; height:10px; overflow:hidden;}
   .lm-chart-bar{height:100%; background:var(--lm-accent); border-radius:6px;}
-  .lm-chart-val{width:28px; text-align:right; color:var(--lm-muted); flex:none;}
+  .lm-chart-val{width:64px; text-align:right; color:var(--lm-muted); flex:none;}
   .lm-selbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:rgba(129,140,248,.08); border:1px solid var(--lm-accent); border-radius:var(--r-md); padding:8px 12px; margin-bottom:var(--sp-3); font-size:12px; color:var(--lm-text);}
   .lm-selbar select{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-text); border-radius:var(--r-sm); padding:6px 8px; font-size:12px;}
   .lm-import-drop{border:1.5px dashed var(--lm-line); border-radius:var(--r-md); padding:16px; text-align:center; color:var(--lm-muted); font-size:12.5px; cursor:pointer;}
@@ -3270,18 +3274,21 @@ function lmView(){
 }
 function lmRenderKPI(){
   const total = LM_DATA.length;
-  const complete = LM_DATA.filter(r=>r.status==='complete').length;
-  const broken = LM_DATA.filter(r=>r.status==='broken'||r.status==='lost').length;
-  const pending = total - complete - broken;
+  const pct = n => total ? (n/total*100).toFixed(2)+'%' : '0%';
+  const counts = {};
+  Object.keys(LM_STATUS).forEach(k=>{ counts[k] = LM_DATA.filter(r=>r.status===k).length; });
   const el = document.getElementById('lmKpiRow');
   if(!el) return;
   el.innerHTML = [
-    ['Total Link', total, '--lm-text'],
-    ['Complete', complete, '--lm-green'],
-    ['Bermasalah', broken, '--lm-red'],
-    ['Belum Selesai', pending, '--lm-amber'],
-  ].map(([label,val,color])=>`
-    <div class="lm-kpi"><b style="color:var(${color})">${val}</b><span>${label}</span></div>
+    ['Total Link', total, '--lm-text', '100% tercatat'],
+    ['Complete', counts.complete, '--lm-green', pct(counts.complete)],
+    ['Uncomplete', counts.uncomplete, '--lm-text', pct(counts.uncomplete)],
+    ['Lost File', counts.lost, '--lm-amber', pct(counts.lost)],
+    ['Skip', counts.skip, '--lm-muted', pct(counts.skip)],
+    ['Broken Link', counts.broken, '--lm-red', pct(counts.broken)],
+    ['Blank', counts.blank, '--lm-muted', pct(counts.blank)],
+  ].map(([label,val,color,sub])=>`
+    <div class="lm-kpi"><b style="color:var(${color})">${val||0}</b><span>${label}</span><small>${sub}</small></div>
   `).join('');
 }
 function lmRenderFilterOptions(){
@@ -3299,20 +3306,23 @@ function lmRenderTable(){
   if(countInfo) countInfo.textContent = view.length+' link';
   if(!tbody) return;
   if(!pageRows.length){
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--lm-muted)">${LM_DATA.length?'Tidak ada hasil sesuai filter.':'Belum ada link. Klik "Tambah Link" atau "Import" untuk mulai.'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--lm-muted)">${LM_DATA.length?'Tidak ada hasil sesuai filter.':'Belum ada link. Klik "Tambah Link" atau "Import" untuk mulai.'}</td></tr>`;
   } else {
     tbody.innerHTML = pageRows.map((r,idx)=>{
       const st = LM_STATUS[r.status] || LM_STATUS.blank;
       const isSel = lmSelected.has(r.id);
-      return `<tr data-lmid="${r.id}"${isSel?' style="background:rgba(129,140,248,.08)"':''}>
+      return `<tr data-lmid="${r.id}"${isSel?' style="background:var(--lm-accent-tint,rgba(0,0,0,.04))"':''}>
         <td><input type="checkbox" class="lm-cb" data-lmchk="${r.id}"${isSel?' checked':''}></td>
         <td>${(lmPage-1)*LM_PAGE_SIZE+idx+1}</td>
         <td class="lm-link-cell"><a href="${escapeHtml(r.link||'#')}" target="_blank" rel="noopener">${escapeHtml(r.link||'(kosong)')}</a>${r._dup?' <span class="lm-badge" style="color:var(--lm-amber);border-color:var(--lm-amber)">Duplikat</span>':''}</td>
-        <td><span class="lm-badge" style="color:var(${st.color});border-color:var(${st.color})">${st.label}</span></td>
+        <td><span class="lm-badge" style="color:var(${st.color});border-color:var(${st.color})">${st.label}</span> <button class="lm-lock${r.locked?' on':''}" data-lmlock="${r.id}" title="${r.locked?'Terkunci — klik untuk buka':'Kunci link ini'}">${r.locked?'🔒':'🔓'}</button></td>
         <td>${r.part ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.outputs,r.part)};border-color:${lmCatColor(LM_SETTINGS.outputs,r.part)}">${escapeHtml(r.part)}</span>` : '—'}</td>
         <td>${r.region ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.regions,r.region)};border-color:${lmCatColor(LM_SETTINGS.regions,r.region)}">${escapeHtml(r.region)}</span>` : '—'}</td>
         <td>${lmFmtDate(r.updatedAt)}</td>
+        <td>${r.note ? escapeHtml(r.note) : '—'}</td>
+        <td>${r.lastPage ? escapeHtml(r.lastPage) : '—'}</td>
         <td class="lm-actions">
+          <button class="lm-iconbtn" data-lmcopy="${r.id}" title="Salin link">⧉</button>
           <button class="lm-iconbtn" data-lmedit="${r.id}" title="Edit">✎</button>
           <button class="lm-iconbtn danger" data-lmdel="${r.id}" title="Hapus">🗑</button>
         </td>
@@ -3342,6 +3352,21 @@ function lmRenderChart(){
       <div class="lm-chart-bar-track"><div class="lm-chart-bar" style="width:${(val/max*100).toFixed(0)}%"></div></div>
       <span class="lm-chart-val">${val}</span>
     </div>`).join('') : `<span style="color:var(--lm-muted);font-size:12px">Belum ada data.</span>`;
+}
+function lmRenderStatusChart(){
+  const bars = document.getElementById('lmStatusChartBars');
+  if(!bars) return;
+  const total = LM_DATA.length;
+  document.getElementById('lmStatusChartTotal').textContent = '· total '+total+' link';
+  const counts = {};
+  Object.keys(LM_STATUS).forEach(k=>{ counts[k] = LM_DATA.filter(r=>r.status===k).length; });
+  const max = Math.max(1, ...Object.values(counts));
+  bars.innerHTML = Object.entries(LM_STATUS).map(([k,v])=>`
+    <div class="lm-chart-row">
+      <span class="lm-chart-label">${v.label}</span>
+      <div class="lm-chart-bar-track"><div class="lm-chart-bar" style="width:${(counts[k]/max*100).toFixed(0)}%;background:var(${v.color})"></div></div>
+      <span class="lm-chart-val">${counts[k]||0} ${total?((counts[k]/total*100).toFixed(1)+'%'):''}</span>
+    </div>`).join('');
 }
 function lmMarkDuplicates(){
   const seen = {};
@@ -3405,10 +3430,10 @@ async function lmBulkDeleteSelected(){
 }
 function lmExportXlsx(){
   if(!LM_DATA.length){ toast('Tidak ada data untuk diekspor', 'error'); return; }
-  const headers = ['Link','Status','Output','Region','Catatan','Diperbarui'];
-  const aoa = [headers, ...LM_DATA.map(r=>[r.link||'', (LM_STATUS[r.status]||{}).label||r.status||'', r.part||'', r.region||'', r.note||'', lmFmtDate(r.updatedAt)])];
+  const headers = ['Link','Status','Output','Region','Catatan/Perubahan','Last Page','Terkunci','Diperbarui'];
+  const aoa = [headers, ...LM_DATA.map(r=>[r.link||'', (LM_STATUS[r.status]||{}).label||r.status||'', r.part||'', r.region||'', r.note||'', r.lastPage||'', r.locked?'Ya':'Tidak', lmFmtDate(r.updatedAt)])];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:40},{wch:14},{wch:16},{wch:14},{wch:30},{wch:14}];
+  ws['!cols'] = [{wch:40},{wch:14},{wch:16},{wch:14},{wch:30},{wch:16},{wch:10},{wch:14}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Link Monitor');
   XLSX.writeFile(wb, 'link-monitor-'+new Date().toISOString().slice(0,10)+'.xlsx');
@@ -3479,6 +3504,7 @@ async function lmDoImport(){
 }
 function lmRenderAll(){
   lmRenderKPI();
+  lmRenderStatusChart();
   lmRenderFilterOptions();
   lmRenderTable();
   lmRenderChart();
@@ -3492,8 +3518,9 @@ function lmFillCatSelects(){
 function lmOpenAdd(){
   lmEditId = null;
   document.getElementById('lmModalTitle').textContent = 'Tambah Link';
-  ['lmFLink','lmFNote'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lmFLink','lmFNote','lmFLastPage'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   document.getElementById('lmFStatusInput').value = 'uncomplete';
+  document.getElementById('lmFLocked').checked = false;
   lmFillCatSelects();
   document.getElementById('lmModalOverlay').classList.add('show');
 }
@@ -3508,6 +3535,8 @@ function lmOpenEdit(id){
   document.getElementById('lmFPartInput').value = r.part||'';
   document.getElementById('lmFRegionInput').value = r.region||'';
   document.getElementById('lmFNote').value = r.note||'';
+  document.getElementById('lmFLastPage').value = r.lastPage||'';
+  document.getElementById('lmFLocked').checked = !!r.locked;
   document.getElementById('lmModalOverlay').classList.add('show');
 }
 function lmCloseModal(){ document.getElementById('lmModalOverlay').classList.remove('show'); lmEditId=null; }
@@ -3525,6 +3554,8 @@ async function lmSaveLinkForm(){
       r.part = document.getElementById('lmFPartInput').value.trim();
       r.region = document.getElementById('lmFRegionInput').value.trim();
       r.note = document.getElementById('lmFNote').value.trim();
+      r.lastPage = document.getElementById('lmFLastPage').value.trim();
+      r.locked = document.getElementById('lmFLocked').checked;
       r.updatedAt = now;
     }
   } else {
@@ -3534,6 +3565,8 @@ async function lmSaveLinkForm(){
       part: document.getElementById('lmFPartInput').value.trim(),
       region: document.getElementById('lmFRegionInput').value.trim(),
       note: document.getElementById('lmFNote').value.trim(),
+      lastPage: document.getElementById('lmFLastPage').value.trim(),
+      locked: document.getElementById('lmFLocked').checked,
       inputAt: now, updatedAt: now
     });
   }
@@ -3605,6 +3638,18 @@ function lmWire(container){
     if(editId) return lmOpenEdit(editId);
     const delId = e.target.closest('[data-lmdel]')?.dataset.lmdel;
     if(delId) return lmAskDelete(delId);
+    const copyId = e.target.closest('[data-lmcopy]')?.dataset.lmcopy;
+    if(copyId){
+      const r = LM_DATA.find(x=>x.id===copyId);
+      if(r && r.link) navigator.clipboard.writeText(r.link).then(()=>toast('Link disalin', 'success')).catch(()=>toast('Gagal menyalin', 'error'));
+      return;
+    }
+    const lockId = e.target.closest('[data-lmlock]')?.dataset.lmlock;
+    if(lockId){
+      const r = LM_DATA.find(x=>x.id===lockId);
+      if(r){ r.locked = !r.locked; r.updatedAt = Date.now(); lmPersist(); lmRenderTable(); }
+      return;
+    }
     if(e.target.closest('#lmConfirmDelBtn')) return lmDoDelete();
     if(e.target.closest('#lmConfirmCancelBtn') || e.target===document.getElementById('lmConfirmOverlay')){
       document.getElementById('lmConfirmOverlay').classList.remove('show'); lmDeleteId=null; lmBulkDeleteMode=false; return;
@@ -3658,6 +3703,10 @@ async function renderLinkMon(){
     el.innerHTML = `
       <h2 class="lm-heading">Monitor Link</h2>
       <div class="lm-kpi-row" id="lmKpiRow"></div>
+      <div class="lm-chart-panel">
+        <div class="lm-chart-head">Distribusi per kategori <span id="lmStatusChartTotal"></span></div>
+        <div id="lmStatusChartBars"></div>
+      </div>
       <div class="lm-chart-panel" id="lmChartWrap">
         <div class="lm-chart-head">Distribusi per Region <span id="lmChartTotal"></span></div>
         <div id="lmChartBars"></div>
@@ -3692,7 +3741,7 @@ async function renderLinkMon(){
       </div>
       <div class="lm-table-wrap">
         <table>
-          <thead><tr><th style="width:30px"><input type="checkbox" id="lmChkAll" title="Pilih semua di halaman ini"></th><th>No</th><th>Link</th><th>Status</th><th>Output</th><th>Region</th><th>Update</th><th>Aksi</th></tr></thead>
+          <thead><tr><th style="width:30px"><input type="checkbox" id="lmChkAll" title="Pilih semua di halaman ini"></th><th>No</th><th>Link</th><th>Status</th><th>Output</th><th>Region</th><th>Update</th><th>Perubahan</th><th>Last Page</th><th>Aksi</th></tr></thead>
           <tbody id="lmTbody"></tbody>
         </table>
       </div>
@@ -3706,7 +3755,9 @@ async function renderLinkMon(){
             <label>Status<select id="lmFStatusInput">${Object.entries(LM_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></label>
             <label>Output<select id="lmFPartInput"></select></label>
             <label>Region<select id="lmFRegionInput"></select></label>
-            <label>Catatan<textarea id="lmFNote" rows="2"></textarea></label>
+            <label>Catatan / Perubahan<textarea id="lmFNote" rows="2"></textarea></label>
+            <label>Last Page<input type="text" id="lmFLastPage" placeholder="mis. halaman 12"></label>
+            <label style="display:flex;align-items:center;gap:8px;flex-direction:row;"><input type="checkbox" id="lmFLocked" style="width:auto;"> Kunci link (tidak boleh diubah member lain)</label>
           </div>
           <div class="lm-modal-foot">
             <button class="lm-btn ghost" id="lmModalCancel">Batal</button>
