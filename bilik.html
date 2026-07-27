@@ -2808,15 +2808,7 @@ async function renderThreadList(el){
   }
 
   if(activeForumScope==='khusus' && activeKhususView==='linkfree'){
-    el.innerHTML = `
-      <div class="scope-tabs">${renderScopeTabsHtml()}</div>
-      <div class="filters">${renderKhususDropdownHtml()}</div>
-      <div id="layoutLinkMon" class="lm-scope"></div>
-    `;
-    wireScopeTabs(el);
-    wireKhususDropdown(el);
-    renderLinkMon();
-    return;
+    activeKhususView = 'semua'; // Link Monitor moved to admin panel — not accessible from member forum
   }
 
   if(activeForumScope==='khusus' && activeKhususView==='etalasekhusus'){
@@ -2910,9 +2902,9 @@ async function renderThreadList(el){
   searchEl.focus();
   searchEl.selectionStart = searchEl.selectionEnd = searchEl.value.length;
 }
-const KHUSUS_VIEW_LABELS = { semua:'Semua', whatsnew:"What's New", 'Diskusi Khusus':'Diskusi', 'Request Only':'Request Only', 'Sharing Video':'Sharing Video', 'Sharing Gambar':'Sharing Gambar', linkfree:'Link Download Gratis', etalasekhusus:'Etalase Khusus' };
+const KHUSUS_VIEW_LABELS = { semua:'Semua', whatsnew:"What's New", 'Diskusi Khusus':'Diskusi', 'Request Only':'Request Only', 'Sharing Video':'Sharing Video', 'Sharing Gambar':'Sharing Gambar', etalasekhusus:'Etalase Khusus' };
 function renderKhususDropdownHtml(){
-  const options = ['semua','whatsnew', ...FORUM_KHUSUS_CATS, 'linkfree', 'etalasekhusus'];
+  const options = ['semua','whatsnew', ...FORUM_KHUSUS_CATS, 'etalasekhusus'];
   return options.map(v=>`<button class="chip ${activeKhususView===v?'active':''}" data-khususview="${escapeHtml(v)}">${escapeHtml(KHUSUS_VIEW_LABELS[v]||v)}</button>`).join('');
 }
 function wireKhususDropdown(el){
@@ -4056,8 +4048,12 @@ async function renderAdmin(){
         </div>
       </div>
       ${renderBadgeAdminSection(users)}
+      <div class="admin-panel" style="grid-column:1/-1;">
+        <div id="layoutLinkMon" class="lm-scope"></div>
+      </div>
     </div>
   `;
+  renderLinkMon();
   renderKhususRegionList();
   document.getElementById('addKhususRegionBtn').onclick = async ()=>{
     const nameEl = document.getElementById('newKhususRegionName');
