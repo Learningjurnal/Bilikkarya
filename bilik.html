@@ -3236,7 +3236,17 @@ let activeAdminSection = 'koneksi'; // 'koneksi' | 'users' | 'karya' | 'linkmon'
 /* ---------------- Link Monitor: tabel link inti ---------------- */
 let LM_DATA = [];
 let LM_SETTINGS = { regions:[], outputs:[] };
-const LM_CAT_PALETTE = { violet:'#3A3A3A', green:'#565656', amber:'#727272', red:'#2A2A2A', blue:'#8E8E8E', pink:'#4E4E4E', gray:'#9C9C9C' };
+const LM_CAT_PALETTE = { violet:'#818CF8', green:'#34D399', amber:'#FBBF24', red:'#F87171', blue:'#60A5FA', pink:'#F472B6', teal:'#2DD4BF', gray:'#9CA3AF' };
+// Deterministic color for a region/output name that has no explicit color set in
+// Kelola Kategori — hashes the name into the palette so the same name always gets
+// the same color across renders, without needing to be manually configured first.
+function lmAutoColor(name){
+  const s = String(name||'');
+  let hash = 0;
+  for(let i=0;i<s.length;i++) hash = (hash*31 + s.charCodeAt(i)) >>> 0;
+  const palette = Object.values(LM_CAT_PALETTE);
+  return palette[hash % palette.length];
+}
 let lmLoaded = false;
 let lmFilters = { q:'', status:'', region:'', part:'' };
 let lmSort = '';
@@ -3249,12 +3259,12 @@ const LM_UNDO_MAX = 15;
 let lmChartVisible = true;
 let lmImportRows = null;
 const LM_STATUS = {
-  uncomplete:{label:'Uncomplete', color:'--lm-muted'},
-  complete:{label:'Complete', color:'--lm-green'},
-  lost:{label:'Lost File', color:'--lm-red'},
-  skip:{label:'Skip', color:'--lm-amber'},
-  broken:{label:'Broken Link', color:'--lm-red'},
-  blank:{label:'Blank', color:'--lm-muted'}
+  uncomplete:{label:'Uncomplete', color:'#94A3B8'},
+  complete:{label:'Complete', color:'#34D399'},
+  lost:{label:'Lost File', color:'#FB923C'},
+  skip:{label:'Skip', color:'#60A5FA'},
+  broken:{label:'Broken Link', color:'#F87171'},
+  blank:{label:'Blank', color:'#D1D5DB'}
 };
 function lmFmtDate(ms){ return ms ? new Date(ms).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
 async function lmLoad(){
@@ -3266,7 +3276,7 @@ async function lmLoad(){
   lmLoaded = true;
 }
 async function lmSaveSettings(){ await sSet('links-settings', LM_SETTINGS, true); }
-function lmCatColor(list, name){ const found = list.find(x=>x.name===name); return found ? (LM_CAT_PALETTE[found.color]||LM_CAT_PALETTE.gray) : LM_CAT_PALETTE.gray; }
+function lmCatColor(list, name){ const found = list.find(x=>x.name===name); return found ? (LM_CAT_PALETTE[found.color]||lmAutoColor(name)) : lmAutoColor(name); }
 async function lmPersist(){
   try{ await sSet('links-core', LM_DATA, true); return true; }
   catch(_){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
@@ -3294,21 +3304,31 @@ function lmRenderKPI(){
   const el = document.getElementById('lmKpiRow');
   if(!el) return;
   el.innerHTML = [
-    ['Total Link', total, '--lm-text', '100% tercatat'],
-    ['Complete', counts.complete, '--lm-green', pct(counts.complete)],
-    ['Uncomplete', counts.uncomplete, '--lm-text', pct(counts.uncomplete)],
-    ['Lost File', counts.lost, '--lm-amber', pct(counts.lost)],
-    ['Skip', counts.skip, '--lm-muted', pct(counts.skip)],
-    ['Broken Link', counts.broken, '--lm-red', pct(counts.broken)],
-    ['Blank', counts.blank, '--lm-muted', pct(counts.blank)],
+    ['Total Link', total, 'var(--lm-text)', '100% tercatat'],
+    ['Complete', counts.complete, LM_STATUS.complete.color, pct(counts.complete)],
+    ['Uncomplete', counts.uncomplete, LM_STATUS.uncomplete.color, pct(counts.uncomplete)],
+    ['Lost File', counts.lost, LM_STATUS.lost.color, pct(counts.lost)],
+    ['Skip', counts.skip, LM_STATUS.skip.color, pct(counts.skip)],
+    ['Broken Link', counts.broken, LM_STATUS.broken.color, pct(counts.broken)],
+    ['Blank', counts.blank, LM_STATUS.blank.color, pct(counts.blank)],
   ].map(([label,val,color,sub])=>`
-    <div class="lm-kpi"><b style="color:var(${color})">${val||0}</b><span>${label}</span><small>${sub}</small></div>
+    <div class="lm-kpi"><b style="color:${color}">${val||0}</b><span>${label}</span><small>${sub}</small></div>
   `).join('');
+}
+// Filter dropdown options must include every region/output actually present in
+// LM_DATA, not just the ones manually configured in Kelola Kategori — otherwise
+// imported data whose region/output was never registered there has no way to be
+// filtered (the dropdown would only ever show "Semua Region"/"Semua Output").
+function lmDistinctFieldValues(field, configured){
+  const fromData = LM_DATA.map(r=>r[field]).filter(Boolean);
+  return [...new Set([...configured.map(x=>x.name), ...fromData])].sort((a,b)=>a.localeCompare(b));
 }
 function lmRenderFilterOptions(){
   const fRegion = document.getElementById('lmFRegion'), fPart = document.getElementById('lmFPart');
-  if(fRegion) fRegion.innerHTML = `<option value="">Semua Region</option>` + LM_SETTINGS.regions.map(r=>`<option value="${escapeHtml(r.name)}"${lmFilters.region===r.name?' selected':''}>${escapeHtml(r.name)}</option>`).join('');
-  if(fPart) fPart.innerHTML = `<option value="">Semua Output</option>` + LM_SETTINGS.outputs.map(p=>`<option value="${escapeHtml(p.name)}"${lmFilters.part===p.name?' selected':''}>${escapeHtml(p.name)}</option>`).join('');
+  const regionNames = lmDistinctFieldValues('region', LM_SETTINGS.regions);
+  const outputNames = lmDistinctFieldValues('part', LM_SETTINGS.outputs);
+  if(fRegion) fRegion.innerHTML = `<option value="">Semua Region</option>` + regionNames.map(n=>`<option value="${escapeHtml(n)}"${lmFilters.region===n?' selected':''}>${escapeHtml(n)}</option>`).join('');
+  if(fPart) fPart.innerHTML = `<option value="">Semua Output</option>` + outputNames.map(n=>`<option value="${escapeHtml(n)}"${lmFilters.part===n?' selected':''}>${escapeHtml(n)}</option>`).join('');
 }
 function lmRenderTable(){
   const view = lmView();
@@ -3329,7 +3349,7 @@ function lmRenderTable(){
         <td><input type="checkbox" class="lm-cb" data-lmchk="${r.id}"${isSel?' checked':''}></td>
         <td>${(lmPage-1)*LM_PAGE_SIZE+idx+1}</td>
         <td class="lm-link-cell"><a href="${escapeHtml(r.link||'#')}" target="_blank" rel="noopener">${escapeHtml(r.link||'(kosong)')}</a>${r._dup?' <span class="lm-badge" style="color:var(--lm-amber);border-color:var(--lm-amber)">Duplikat</span>':''}</td>
-        <td><span class="lm-badge" style="color:var(${st.color});border-color:var(${st.color})">${st.label}</span> <button class="lm-lock${r.locked?' on':''}" data-lmlock="${r.id}" title="${r.locked?'Terkunci — klik untuk buka':'Kunci link ini'}">${r.locked?'🔒':'🔓'}</button></td>
+        <td><span class="lm-badge" style="color:${st.color};border-color:${st.color}">${st.label}</span> <button class="lm-lock${r.locked?' on':''}" data-lmlock="${r.id}" title="${r.locked?'Terkunci — klik untuk buka':'Kunci link ini'}">${r.locked?'🔒':'🔓'}</button></td>
         <td>${r.part ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.outputs,r.part)};border-color:${lmCatColor(LM_SETTINGS.outputs,r.part)}">${escapeHtml(r.part)}</span>` : '—'}</td>
         <td>${r.region ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.regions,r.region)};border-color:${lmCatColor(LM_SETTINGS.regions,r.region)}">${escapeHtml(r.region)}</span>` : '—'}</td>
         <td>${lmFmtDate(r.updatedAt)}</td>
@@ -3374,12 +3394,14 @@ function lmJumpToPage(){
   lmPage = n;
   lmRenderTable();
 }
-const LM_PIE_PALETTE = ['#4A4A4A','#8A8A8A','#242424','#B5B5B5','#666666','#D6D6D6','#333333','#9C9C9C'];
 // Renders a conic-gradient pie into pieEl plus a matching legend list into legendEl.
-// entries: [label, value][], already sorted by caller. Colors cycle through a fixed
-// grayscale ramp so the chart stays monochrome regardless of category count.
-function lmBuildPieAndLegend(pieEl, legendEl, entries, total){
+// entries: [label, value][], already sorted by caller. colorFn(label,i) picks each
+// slice's color — callers pass one that matches the same colors used on the table's
+// badges (status colors, or lmCatColor for region/output) so the chart and the table
+// read as one consistent picture, rather than relying on generic cycling colors.
+function lmBuildPieAndLegend(pieEl, legendEl, entries, total, colorFn){
   if(!pieEl || !legendEl) return;
+  const getColor = colorFn || ((label,i)=>Object.values(LM_CAT_PALETTE)[i % Object.keys(LM_CAT_PALETTE).length]);
   if(!total || !entries.length){
     pieEl.style.background = 'none';
     pieEl.classList.add('lm-pie-empty');
@@ -3388,8 +3410,8 @@ function lmBuildPieAndLegend(pieEl, legendEl, entries, total){
   }
   pieEl.classList.remove('lm-pie-empty');
   let acc = 0;
-  const stops = entries.map(([,val],i)=>{
-    const color = LM_PIE_PALETTE[i % LM_PIE_PALETTE.length];
+  const stops = entries.map(([label,val],i)=>{
+    const color = getColor(label,i);
     const start = (acc/total*360).toFixed(2);
     acc += val;
     const end = (acc/total*360).toFixed(2);
@@ -3398,7 +3420,7 @@ function lmBuildPieAndLegend(pieEl, legendEl, entries, total){
   pieEl.style.background = `conic-gradient(${stops})`;
   legendEl.innerHTML = entries.map(([label,val],i)=>`
     <div class="row">
-      <span class="dot" style="background:${LM_PIE_PALETTE[i % LM_PIE_PALETTE.length]}"></span>
+      <span class="dot" style="background:${getColor(label,i)}"></span>
       <span class="lbl">${escapeHtml(String(label))}</span>
       <span class="val">${val} · ${(val/total*100).toFixed(1)}%</span>
     </div>`).join('');
@@ -3412,15 +3434,18 @@ function lmRenderChart(){
   LM_DATA.forEach(r=>{ const k = r.region||'(tanpa region)'; byRegion[k]=(byRegion[k]||0)+1; });
   const entries = Object.entries(byRegion).sort((a,b)=>b[1]-a[1]).slice(0,8);
   document.getElementById('lmChartTotal').textContent = LM_DATA.length+' total';
-  lmBuildPieAndLegend(document.getElementById('lmRegionPie'), document.getElementById('lmRegionLegend'), entries, LM_DATA.length);
+  lmBuildPieAndLegend(document.getElementById('lmRegionPie'), document.getElementById('lmRegionLegend'), entries, LM_DATA.length,
+    (label)=> label==='(tanpa region)' ? '#9CA3AF' : lmCatColor(LM_SETTINGS.regions, label));
 }
 function lmRenderStatusChart(){
   const pie = document.getElementById('lmStatusPie');
   if(!pie) return;
   const total = LM_DATA.length;
   document.getElementById('lmStatusChartTotal').textContent = '· total '+total+' link';
+  const labelColor = {};
+  Object.values(LM_STATUS).forEach(v=>{ labelColor[v.label] = v.color; });
   const entries = Object.entries(LM_STATUS).map(([k,v])=>[v.label, LM_DATA.filter(r=>r.status===k).length]).filter(([,val])=>val>0);
-  lmBuildPieAndLegend(pie, document.getElementById('lmStatusLegend'), entries, total);
+  lmBuildPieAndLegend(pie, document.getElementById('lmStatusLegend'), entries, total, (label)=>labelColor[label]);
 }
 function lmMarkDuplicates(){
   const seen = {};
