@@ -3600,6 +3600,26 @@ function lmSelectDuplicates(){
   lmRenderTable(); lmRenderSelBar();
 }
 function lmToggleSelect(id, on){ on ? lmSelected.add(id) : lmSelected.delete(id); lmRenderSelBar(); }
+let lmLastCheckedId = null;
+// Shift+click a checkbox to select every row between it and the last one you
+// checked (like a file manager) — scroll to the far end of the range first,
+// then shift+click there. Range is scoped to the checkboxes currently on screen
+// (this page), matching what's visibly between the two clicks.
+function lmToggleSelectShift(id, on, shiftKey){
+  if(shiftKey && lmLastCheckedId && lmLastCheckedId!==id){
+    const ids = [...document.querySelectorAll('#lmTbody .lm-cb')].map(cb=>cb.dataset.lmchk);
+    const from = ids.indexOf(lmLastCheckedId), to = ids.indexOf(id);
+    if(from!==-1 && to!==-1){
+      const [start,end] = from<to ? [from,to] : [to,from];
+      ids.slice(start, end+1).forEach(rid=> on ? lmSelected.add(rid) : lmSelected.delete(rid));
+      lmLastCheckedId = id;
+      lmRenderTable();
+      return;
+    }
+  }
+  lmLastCheckedId = id;
+  lmToggleSelect(id, on);
+}
 function lmClearSelection(){ lmSelected.clear(); lmRenderTable(); lmRenderSelBar(); }
 function lmSelectAllOnPage(){ lmView().slice((lmPage-1)*LM_PAGE_SIZE, lmPage*LM_PAGE_SIZE).forEach(r=>lmSelected.add(r.id)); lmRenderTable(); lmRenderSelBar(); }
 function lmRenderSelBar(){
@@ -3956,6 +3976,10 @@ function lmWire(container){
   if(container.dataset.wired) return;
   container.dataset.wired = '1';
   container.addEventListener('click', e=>{
+    // Handled on click (not change) specifically because shiftKey only exists on
+    // click/mouse events — a checkbox's 'change' event carries no modifier-key
+    // info, so shift+click range-select has to react here instead.
+    if(e.target.classList.contains('lm-cb') && e.target.dataset.lmchk){ lmToggleSelectShift(e.target.dataset.lmchk, e.target.checked, e.shiftKey); return; }
     if(e.target.closest('#lmAddBtn')) return lmOpenAdd();
     if(e.target.closest('#lmModalClose') || e.target.closest('#lmModalCancel')) return lmCloseModal();
     if(e.target===document.getElementById('lmModalOverlay')) return lmCloseModal();
@@ -4028,7 +4052,6 @@ function lmWire(container){
     if(e.target.id==='lmFRegion'){ lmFilters.region = e.target.value; lmPage=1; lmRenderTable(); }
     if(e.target.id==='lmFPart'){ lmFilters.part = e.target.value; lmPage=1; lmRenderTable(); }
     if(e.target.id==='lmFSort'){ lmSort = e.target.value; lmRenderTable(); }
-    if(e.target.classList.contains('lm-cb') && e.target.dataset.lmchk){ lmToggleSelect(e.target.dataset.lmchk, e.target.checked); }
     if(e.target.id==='lmImportFile' && e.target.files[0]) lmReadImportFile(e.target.files[0]);
   });
   container.addEventListener('keydown', e=>{
