@@ -130,9 +130,13 @@
   .lm-iconbtn{background:transparent; border:1px solid var(--lm-line); color:var(--lm-muted); width:26px; height:26px; border-radius:6px; cursor:pointer; font-size:12px;}
   .lm-iconbtn.danger:hover{border-color:var(--lm-red); color:var(--lm-red);}
   .lm-iconbtn:hover{border-color:var(--lm-accent); color:var(--lm-accent);}
-  .lm-pager{display:flex; gap:4px; margin-top:var(--sp-3); flex-wrap:wrap;}
-  .lm-pg{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-muted); width:28px; height:28px; border-radius:6px; font-size:11.5px; cursor:pointer;}
+  .lm-pager{display:flex; gap:4px; margin-top:var(--sp-3); flex-wrap:wrap; align-items:center;}
+  .lm-pg{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-muted); min-width:28px; height:28px; padding:0 6px; border-radius:6px; font-size:11.5px; cursor:pointer;}
+  .lm-pg:disabled{opacity:.4; cursor:default;}
   .lm-pg.active{background:var(--lm-accent-fill); border-color:var(--lm-accent-fill); color:var(--on-fill-light);}
+  .lm-pg-ellipsis{color:var(--lm-muted); padding:0 2px; font-size:11.5px;}
+  .lm-pg-jump{display:flex; align-items:center; gap:6px; margin-left:8px; font-size:11.5px; color:var(--lm-muted);}
+  .lm-pg-jump input{width:60px; background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-text); border-radius:6px; padding:5px 7px; font-size:11.5px;}
   .lm-modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center;}
   .lm-modal-overlay.show{display:flex;}
   .lm-modal{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-lg); width:min(420px,92vw); max-height:88vh; overflow:auto;}
@@ -142,6 +146,8 @@
   .lm-modal-body label{display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:var(--lm-muted); font-weight:600;}
   .lm-modal-body input, .lm-modal-body select, .lm-modal-body textarea{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-text); border-radius:var(--r-sm); padding:8px 10px; font-size:13px; font-family:'Inter',sans-serif; outline:none;}
   .lm-modal-foot{display:flex; justify-content:flex-end; gap:8px; padding:14px 16px; border-top:1px solid var(--lm-line);}
+  .lm-chart-row-wrap{display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-3);}
+  .lm-chart-row-wrap .lm-chart-panel{flex:1 1 320px; min-width:280px; margin-bottom:0;}
   .lm-chart-panel{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-md); padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-3);}
   .lm-chart-head{font-size:12px; font-weight:700; color:var(--lm-muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:.04em;}
   .lm-chart-head span{font-weight:400; text-transform:none; margin-left:6px; opacity:.7;}
@@ -150,6 +156,14 @@
   .lm-chart-bar-track{flex:1; background:var(--lm-panel-2); border-radius:6px; height:10px; overflow:hidden;}
   .lm-chart-bar{height:100%; background:var(--lm-accent); border-radius:6px;}
   .lm-chart-val{width:64px; text-align:right; color:var(--lm-muted); flex:none;}
+  .lm-pie-wrap{display:flex; align-items:center; gap:18px;}
+  .lm-pie{width:104px; height:104px; border-radius:50%; flex:none;}
+  .lm-pie-empty{border:1px dashed var(--lm-line); background:transparent !important;}
+  .lm-pie-legend{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; font-size:11px;}
+  .lm-pie-legend .row{display:flex; align-items:center; gap:6px;}
+  .lm-pie-legend .dot{width:9px; height:9px; border-radius:2px; flex:none;}
+  .lm-pie-legend .lbl{flex:1; min-width:0; color:var(--lm-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .lm-pie-legend .val{color:var(--lm-muted); flex:none;}
   .lm-selbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:rgba(129,140,248,.08); border:1px solid var(--lm-accent); border-radius:var(--r-md); padding:8px 12px; margin-bottom:var(--sp-3); font-size:12px; color:var(--lm-text);}
   .lm-selbar select{background:var(--lm-panel-2); border:1px solid var(--lm-line); color:var(--lm-text); border-radius:var(--r-sm); padding:6px 8px; font-size:12px;}
   .lm-import-drop{border:1.5px dashed var(--lm-line); border-radius:var(--r-md); padding:16px; text-align:center; color:var(--lm-muted); font-size:12.5px; cursor:pointer;}
@@ -3330,11 +3344,64 @@ function lmRenderTable(){
     }).join('');
   }
   const pager = document.getElementById('lmPager');
-  if(pager){
-    pager.innerHTML = totalPages<=1 ? '' : Array.from({length:totalPages},(_,i)=>i+1).map(p=>
-      `<button class="lm-pg${p===lmPage?' active':''}" data-lmpage="${p}">${p}</button>`
-    ).join('');
+  if(pager) pager.innerHTML = lmBuildPagerHtml(lmPage, totalPages);
+}
+// Windowed pager: always shows first/last page plus a small window around the
+// current page (with … gaps), instead of one button per page — with 800+ pages
+// a full list is both unusable and makes the page enormous. A jump-to-page input
+// covers getting to a page far outside the window.
+function lmBuildPagerHtml(current, total){
+  if(total<=1) return '';
+  const pages = new Set([1, total, current]);
+  for(let d=1; d<=1; d++){ pages.add(current-d); pages.add(current+d); }
+  const list = [...pages].filter(p=>p>=1 && p<=total).sort((a,b)=>a-b);
+  let html = `<button class="lm-pg" data-lmpage="${Math.max(1,current-1)}"${current===1?' disabled':''} title="Sebelumnya">‹</button>`;
+  let prev = 0;
+  list.forEach(p=>{
+    if(prev && p-prev>1) html += `<span class="lm-pg-ellipsis">…</span>`;
+    html += `<button class="lm-pg${p===current?' active':''}" data-lmpage="${p}">${p}</button>`;
+    prev = p;
+  });
+  html += `<button class="lm-pg" data-lmpage="${Math.min(total,current+1)}"${current===total?' disabled':''} title="Berikutnya">›</button>`;
+  html += `<span class="lm-pg-jump">Ke hal. <input type="number" id="lmPageJumpInput" min="1" max="${total}" value="${current}"> / ${total} <button class="lm-btn ghost" id="lmPageJumpBtn">Buka</button></span>`;
+  return html;
+}
+function lmJumpToPage(){
+  const input = document.getElementById('lmPageJumpInput');
+  if(!input) return;
+  const totalPages = Math.max(1, Math.ceil(lmView().length/LM_PAGE_SIZE));
+  const n = Math.min(totalPages, Math.max(1, Math.round(+input.value) || 1));
+  lmPage = n;
+  lmRenderTable();
+}
+const LM_PIE_PALETTE = ['#4A4A4A','#8A8A8A','#242424','#B5B5B5','#666666','#D6D6D6','#333333','#9C9C9C'];
+// Renders a conic-gradient pie into pieEl plus a matching legend list into legendEl.
+// entries: [label, value][], already sorted by caller. Colors cycle through a fixed
+// grayscale ramp so the chart stays monochrome regardless of category count.
+function lmBuildPieAndLegend(pieEl, legendEl, entries, total){
+  if(!pieEl || !legendEl) return;
+  if(!total || !entries.length){
+    pieEl.style.background = 'none';
+    pieEl.classList.add('lm-pie-empty');
+    legendEl.innerHTML = `<span style="color:var(--lm-muted);font-size:12px">Belum ada data.</span>`;
+    return;
   }
+  pieEl.classList.remove('lm-pie-empty');
+  let acc = 0;
+  const stops = entries.map(([,val],i)=>{
+    const color = LM_PIE_PALETTE[i % LM_PIE_PALETTE.length];
+    const start = (acc/total*360).toFixed(2);
+    acc += val;
+    const end = (acc/total*360).toFixed(2);
+    return `${color} ${start}deg ${end}deg`;
+  }).join(', ');
+  pieEl.style.background = `conic-gradient(${stops})`;
+  legendEl.innerHTML = entries.map(([label,val],i)=>`
+    <div class="row">
+      <span class="dot" style="background:${LM_PIE_PALETTE[i % LM_PIE_PALETTE.length]}"></span>
+      <span class="lbl">${escapeHtml(String(label))}</span>
+      <span class="val">${val} · ${(val/total*100).toFixed(1)}%</span>
+    </div>`).join('');
 }
 function lmRenderChart(){
   const wrap = document.getElementById('lmChartWrap');
@@ -3344,29 +3411,16 @@ function lmRenderChart(){
   const byRegion = {};
   LM_DATA.forEach(r=>{ const k = r.region||'(tanpa region)'; byRegion[k]=(byRegion[k]||0)+1; });
   const entries = Object.entries(byRegion).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const max = Math.max(1, ...entries.map(e=>e[1]));
   document.getElementById('lmChartTotal').textContent = LM_DATA.length+' total';
-  document.getElementById('lmChartBars').innerHTML = entries.length ? entries.map(([label,val])=>`
-    <div class="lm-chart-row">
-      <span class="lm-chart-label">${escapeHtml(label)}</span>
-      <div class="lm-chart-bar-track"><div class="lm-chart-bar" style="width:${(val/max*100).toFixed(0)}%"></div></div>
-      <span class="lm-chart-val">${val}</span>
-    </div>`).join('') : `<span style="color:var(--lm-muted);font-size:12px">Belum ada data.</span>`;
+  lmBuildPieAndLegend(document.getElementById('lmRegionPie'), document.getElementById('lmRegionLegend'), entries, LM_DATA.length);
 }
 function lmRenderStatusChart(){
-  const bars = document.getElementById('lmStatusChartBars');
-  if(!bars) return;
+  const pie = document.getElementById('lmStatusPie');
+  if(!pie) return;
   const total = LM_DATA.length;
   document.getElementById('lmStatusChartTotal').textContent = '· total '+total+' link';
-  const counts = {};
-  Object.keys(LM_STATUS).forEach(k=>{ counts[k] = LM_DATA.filter(r=>r.status===k).length; });
-  const max = Math.max(1, ...Object.values(counts));
-  bars.innerHTML = Object.entries(LM_STATUS).map(([k,v])=>`
-    <div class="lm-chart-row">
-      <span class="lm-chart-label">${v.label}</span>
-      <div class="lm-chart-bar-track"><div class="lm-chart-bar" style="width:${(counts[k]/max*100).toFixed(0)}%;background:var(${v.color})"></div></div>
-      <span class="lm-chart-val">${counts[k]||0} ${total?((counts[k]/total*100).toFixed(1)+'%'):''}</span>
-    </div>`).join('');
+  const entries = Object.entries(LM_STATUS).map(([k,v])=>[v.label, LM_DATA.filter(r=>r.status===k).length]).filter(([,val])=>val>0);
+  lmBuildPieAndLegend(pie, document.getElementById('lmStatusLegend'), entries, total);
 }
 function lmMarkDuplicates(){
   const seen = {};
@@ -3690,6 +3744,7 @@ function lmWire(container){
     }
     const pg = e.target.closest('[data-lmpage]')?.dataset.lmpage;
     if(pg){ lmPage = +pg; return lmRenderTable(); }
+    if(e.target.closest('#lmPageJumpBtn')) return lmJumpToPage();
     if(e.target.closest('#lmChartToggle')){ lmChartVisible = !lmChartVisible; return lmRenderChart(); }
     if(e.target.closest('#lmUndoBtn')) return lmUndo();
     if(e.target.closest('#lmDupBtn')) return lmSelectDuplicates();
@@ -3729,6 +3784,9 @@ function lmWire(container){
     if(e.target.classList.contains('lm-cb') && e.target.dataset.lmchk){ lmToggleSelect(e.target.dataset.lmchk, e.target.checked); }
     if(e.target.id==='lmImportFile' && e.target.files[0]) lmReadImportFile(e.target.files[0]);
   });
+  container.addEventListener('keydown', e=>{
+    if(e.target.id==='lmPageJumpInput' && e.key==='Enter'){ e.preventDefault(); lmJumpToPage(); }
+  });
 }
 async function renderLinkMon(){
   const el = document.getElementById('layoutLinkMon');
@@ -3737,13 +3795,21 @@ async function renderLinkMon(){
     el.innerHTML = `
       <h2 class="lm-heading">Monitor Link</h2>
       <div class="lm-kpi-row" id="lmKpiRow"></div>
-      <div class="lm-chart-panel">
-        <div class="lm-chart-head">Distribusi per kategori <span id="lmStatusChartTotal"></span></div>
-        <div id="lmStatusChartBars"></div>
-      </div>
-      <div class="lm-chart-panel" id="lmChartWrap">
-        <div class="lm-chart-head">Distribusi per Region <span id="lmChartTotal"></span></div>
-        <div id="lmChartBars"></div>
+      <div class="lm-chart-row-wrap">
+        <div class="lm-chart-panel">
+          <div class="lm-chart-head">Distribusi per kategori <span id="lmStatusChartTotal"></span></div>
+          <div class="lm-pie-wrap">
+            <div class="lm-pie" id="lmStatusPie"></div>
+            <div class="lm-pie-legend" id="lmStatusLegend"></div>
+          </div>
+        </div>
+        <div class="lm-chart-panel" id="lmChartWrap">
+          <div class="lm-chart-head">Distribusi per Region <span id="lmChartTotal"></span></div>
+          <div class="lm-pie-wrap">
+            <div class="lm-pie" id="lmRegionPie"></div>
+            <div class="lm-pie-legend" id="lmRegionLegend"></div>
+          </div>
+        </div>
       </div>
       <div class="lm-toolbar">
         <div class="lm-search"><input type="text" id="lmSearch" placeholder="Cari link atau catatan…"></div>
