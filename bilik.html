@@ -3758,6 +3758,31 @@ async function lmDoDelete(){
   lmRenderAll();
   if(ok) toast('Link dihapus', 'success');
 }
+// A random one-time code (not a fixed password) is enough friction to stop an
+// accidental click from wiping the whole table, without needing a separate
+// admin-password system on top of the isRealAdmin gate this whole panel already
+// requires to even be reached.
+let lmDeleteAllCode = '';
+function lmOpenDeleteAll(){
+  lmDeleteAllCode = Math.random().toString(36).slice(2,8).toUpperCase();
+  document.getElementById('lmDeleteAllCode').textContent = lmDeleteAllCode;
+  document.getElementById('lmDeleteAllCount').textContent = LM_DATA.length;
+  document.getElementById('lmDeleteAllInput').value = '';
+  document.getElementById('lmDeleteAllConfirmBtn').disabled = true;
+  document.getElementById('lmDeleteAllOverlay').classList.add('show');
+}
+function lmCloseDeleteAll(){ document.getElementById('lmDeleteAllOverlay').classList.remove('show'); lmDeleteAllCode=''; }
+async function lmConfirmDeleteAll(){
+  const input = document.getElementById('lmDeleteAllInput');
+  if(!input || input.value.trim().toUpperCase()!==lmDeleteAllCode || !LM_DATA.length) return;
+  lmPushUndo();
+  LM_DATA = [];
+  lmSelected.clear();
+  const ok = await lmPersist();
+  lmCloseDeleteAll();
+  lmRenderAll();
+  toast(ok ? 'Semua link telah dihapus' : 'Gagal menghapus — cek koneksi Supabase', ok?'success':'error');
+}
 function lmRenderCatMgr(){
   const outEl = document.getElementById('lmOutputList'), regEl = document.getElementById('lmRegionList');
   const rowHtml = (list, kind) => list.map((item,idx)=>`
@@ -3854,9 +3879,17 @@ function lmWire(container){
     if(e.target.closest('#lmAddRegionBtn')) return lmAddCat('region');
     const delCat = e.target.closest('[data-lmcatdel]')?.dataset.lmcatdel;
     if(delCat){ const [kind,idx] = delCat.split(':'); return lmDeleteCat(kind, +idx); }
+    if(e.target.closest('#lmDeleteAllBtn')) return lmOpenDeleteAll();
+    if(e.target.closest('#lmDeleteAllClose') || e.target.closest('#lmDeleteAllCancel')) return lmCloseDeleteAll();
+    if(e.target===document.getElementById('lmDeleteAllOverlay')) return lmCloseDeleteAll();
+    if(e.target.closest('#lmDeleteAllConfirmBtn')) return lmConfirmDeleteAll();
   });
   container.addEventListener('input', e=>{
     if(e.target.id==='lmSearch'){ lmFilters.q = e.target.value; lmPage=1; lmRenderTable(); }
+    if(e.target.id==='lmDeleteAllInput'){
+      const btn = document.getElementById('lmDeleteAllConfirmBtn');
+      if(btn) btn.disabled = e.target.value.trim().toUpperCase()!==lmDeleteAllCode;
+    }
     if(e.target.id==='lmImportPaste'){
       const v = e.target.value.trim();
       if(v.length>3) lmHandleImportRows(lmParseLinksFromText(v));
@@ -3873,6 +3906,7 @@ function lmWire(container){
   });
   container.addEventListener('keydown', e=>{
     if(e.target.id==='lmPageJumpInput' && e.key==='Enter'){ e.preventDefault(); lmJumpToPage(); }
+    if(e.target.id==='lmDeleteAllInput' && e.key==='Enter' && !document.getElementById('lmDeleteAllConfirmBtn').disabled){ e.preventDefault(); lmConfirmDeleteAll(); }
   });
 }
 async function renderLinkMon(){
@@ -3916,6 +3950,7 @@ async function renderLinkMon(){
         <button class="lm-btn ghost" id="lmImportBtn">Import</button>
         <button class="lm-btn ghost" id="lmExportBtn">Export XLSX</button>
         <button class="lm-btn primary" id="lmAddBtn">+ Tambah Link</button>
+        <button class="lm-btn danger" id="lmDeleteAllBtn" title="Hapus semua link — butuh kode konfirmasi admin">🗑 Hapus Semua Link</button>
       </div>
       <div class="lm-selbar" id="lmSelBar" style="display:none">
         <span><b id="lmSelCount">0</b> dipilih</span>
@@ -4002,6 +4037,21 @@ async function renderLinkMon(){
             </div>
           </div>
           <div class="lm-modal-foot"><button class="lm-btn ghost" id="lmCatMgrDoneBtn">Selesai</button></div>
+        </div>
+      </div>
+      <div class="lm-modal-overlay" id="lmDeleteAllOverlay">
+        <div class="lm-modal" style="max-width:380px">
+          <div class="lm-modal-head"><span>Hapus Semua Link</span><button id="lmDeleteAllClose">✕</button></div>
+          <div class="lm-modal-body">
+            <p style="font-size:12.5px;color:var(--lm-text);margin:0;">Tindakan ini menghapus <b id="lmDeleteAllCount">0</b> link secara permanen. Tidak bisa dibatalkan setelah tersimpan (kecuali lewat Undo sebelum aksi lain dilakukan).</p>
+            <p style="font-size:12px;color:var(--lm-muted);margin:0;">Ketik kode konfirmasi admin berikut untuk melanjutkan:</p>
+            <div id="lmDeleteAllCode" style="text-align:center;font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;letter-spacing:4px;padding:10px;background:var(--lm-panel-2);border:1px solid var(--lm-line);border-radius:8px;"></div>
+            <label>Kode Konfirmasi<input type="text" id="lmDeleteAllInput" placeholder="Ketik kode di atas" autocomplete="off"></label>
+          </div>
+          <div class="lm-modal-foot">
+            <button class="lm-btn ghost" id="lmDeleteAllCancel">Batal</button>
+            <button class="lm-btn danger" id="lmDeleteAllConfirmBtn" disabled>Hapus Semua</button>
+          </div>
         </div>
       </div>
     `;
