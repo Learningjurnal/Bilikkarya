@@ -3334,6 +3334,26 @@ async function lmPersistBulkStatus(ids, status, now){
   catch(e){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
 }
 let lmLoadErrorMsg = '';
+// PostgREST caps an unranged select('*') at its default max-rows (commonly 1000)
+// — past that, rows are silently dropped from the response with no error, so a
+// single unpaginated fetch quietly truncated any dataset larger than that limit.
+// This pages through with .range() until a page comes back short, accumulating
+// everything. .order('id') makes the paging deterministic — without a stable
+// sort, Postgres doesn't guarantee the same row ordering across separate range
+// queries, which can skip or duplicate rows between pages.
+async function lmFetchAllRows(){
+  const PAGE = 1000;
+  let all = [];
+  let from = 0;
+  while(true){
+    const { data, error } = await _SB.from('bilik_links').select('*').order('id').range(from, from+PAGE-1);
+    if(error) throw error;
+    all = all.concat(data||[]);
+    if(!data || data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 async function lmLoad(){
   if(lmLoaded) return;
   LM_DATA = [];
@@ -3341,9 +3361,8 @@ async function lmLoad(){
   lmLoadErrorMsg = '';
   if(_SB){
     try{
-      const { data, error } = await _SB.from('bilik_links').select('*');
-      if(error) throw error;
-      LM_DATA = (data||[]).map(lmRowFromDb);
+      const rows = await lmFetchAllRows();
+      LM_DATA = rows.map(lmRowFromDb);
       if(!LM_DATA.length){
         // Table exists and is empty — if there's data left over from the old
         // one-blob storage, migrate it in once rather than leaving it stranded.
