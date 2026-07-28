@@ -3268,6 +3268,14 @@ const LM_STATUS = {
   broken:{label:'Broken Link', color:'#F87171'},
   blank:{label:'Blank', color:'#D1D5DB'}
 };
+// External files (other trackers' exports, or a paste from one) store the status as
+// its display label ("Broken Link", "Lost File") rather than our internal key
+// ("broken", "lost") — matching only the key silently dumped every such row into
+// "uncomplete", so filtering/counting by Broken Link, Skip, or Lost File found
+// nothing even though the rows existed. This matches key OR label, case-insensitive.
+const LM_STATUS_LOOKUP = {};
+Object.entries(LM_STATUS).forEach(([k,v])=>{ LM_STATUS_LOOKUP[k] = k; LM_STATUS_LOOKUP[v.label.toLowerCase()] = k; });
+function lmNormalizeStatus(raw){ return LM_STATUS_LOOKUP[String(raw||'').trim().toLowerCase()] || 'uncomplete'; }
 function lmFmtDate(ms){ return ms ? new Date(ms).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
 async function lmLoad(){
   if(lmLoaded) return;
@@ -3279,6 +3287,24 @@ async function lmLoad(){
 }
 async function lmSaveSettings(){ await sSet('links-settings', LM_SETTINGS, true); }
 function lmCatColor(list, name){ const found = list.find(x=>x.name===name); return found ? (LM_CAT_PALETTE[found.color]||lmAutoColor(name)) : lmAutoColor(name); }
+// Kelola Kategori only ever showed what was manually added there, never what's
+// actually in LM_DATA — so a region/output that arrived via import (without
+// anyone opening Kelola Kategori to register it by hand) was invisible there,
+// even though it's live in the data and in every filter/badge/chart. This
+// registers any such value into LM_SETTINGS so the two stay in sync.
+async function lmSyncCategoriesFromData(){
+  let changed = false;
+  const paletteKeys = Object.keys(LM_CAT_PALETTE);
+  const ensure = (list, value) => {
+    if(!value || list.some(x=>x.name===value)) return;
+    list.push({ name: value, color: paletteKeys[list.length % paletteKeys.length] });
+    changed = true;
+  };
+  [...new Set(LM_DATA.map(r=>r.part).filter(Boolean))].forEach(v=>ensure(LM_SETTINGS.outputs, v));
+  [...new Set(LM_DATA.map(r=>r.region).filter(Boolean))].forEach(v=>ensure(LM_SETTINGS.regions, v));
+  if(changed) await lmSaveSettings();
+  return changed;
+}
 async function lmPersist(){
   try{ await sSet('links-core', LM_DATA, true); return true; }
   catch(_){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
@@ -3289,7 +3315,10 @@ function lmView(){
     if(lmFilters.status && r.status!==lmFilters.status) return false;
     if(lmFilters.region && r.region!==lmFilters.region) return false;
     if(lmFilters.part && r.part!==lmFilters.part) return false;
-    if(q && !((r.link||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q))) return false;
+    if(q){
+      const hay = [r.link, r.note, r.part, r.region, r.lastPage].map(v=>(v||'').toLowerCase());
+      if(!hay.some(v=>v.includes(q))) return false;
+    }
     return true;
   });
   if(lmSort==='link-asc') arr.sort((a,b)=>(a.link||'').localeCompare(b.link||''));
@@ -3539,7 +3568,7 @@ function lmExportXlsx(){
 function lmParseLinksFromText(txt){
   return txt.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
     const parts = line.split(/\t|,(?=\S)/).map(s=>s.trim());
-    return { link: parts[0]||'', status: (parts[1]||'').toLowerCase() in LM_STATUS ? parts[1].toLowerCase() : 'uncomplete', part: parts[2]||'', region: parts[3]||'' };
+    return { link: parts[0]||'', status: lmNormalizeStatus(parts[1]), part: parts[2]||'', region: parts[3]||'' };
   }).filter(r=>r.link && isSafeUrl(r.link));
 }
 function lmOpenImport(){
@@ -3584,7 +3613,7 @@ function lmMapTableRows(matrix){
   };
   return matrix.slice(1).map(row=>({
     link: get(row,'link',0),
-    status: (get(row,'status',1).toLowerCase() in LM_STATUS) ? get(row,'status',1).toLowerCase() : 'uncomplete',
+    status: lmNormalizeStatus(get(row,'status',1)),
     part: get(row,'part',2),
     region: get(row,'region',3),
     lastPage: get(row,'lastPage',4),
@@ -3619,19 +3648,30 @@ async function lmDoImport(){
   if(!lmImportRows || !lmImportRows.length) return;
   lmPushUndo();
   const now = Date.now();
-  const existing = new Set(LM_DATA.map(r=>(r.link||'').trim().toLowerCase()));
-  let added = 0, skipped = 0;
+  // Map (not a Set) so a duplicate link can update the existing row in place —
+  // re-importing the same file after a parsing fix (e.g. status normalization)
+  // should correct rows already in LM_DATA, not silently skip them forever.
+  const existing = new Map(LM_DATA.map(r=>[(r.link||'').trim().toLowerCase(), r]));
+  let added = 0, updated = 0;
   lmImportRows.forEach(r=>{
     const key = r.link.trim().toLowerCase();
-    if(existing.has(key)){ skipped++; return; }
-    existing.add(key);
-    LM_DATA.unshift({ id:'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8)+added, link:r.link, status:r.status||'uncomplete', part:r.part||'', region:r.region||'', note:r.note||'', lastPage:r.lastPage||'', inputAt:now, updatedAt:now });
+    const hit = existing.get(key);
+    if(hit){
+      hit.status = r.status||'uncomplete'; hit.part = r.part||hit.part||''; hit.region = r.region||hit.region||'';
+      hit.note = r.note||hit.note||''; hit.lastPage = r.lastPage||hit.lastPage||''; hit.updatedAt = now;
+      updated++;
+      return;
+    }
+    const row = { id:'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8)+added, link:r.link, status:r.status||'uncomplete', part:r.part||'', region:r.region||'', note:r.note||'', lastPage:r.lastPage||'', inputAt:now, updatedAt:now };
+    LM_DATA.unshift(row);
+    existing.set(key, row);
     added++;
   });
+  await lmSyncCategoriesFromData();
   await lmPersist();
   lmCloseImport();
   lmRenderAll();
-  toast(`Import selesai — ${added} ditambah${skipped?', '+skipped+' dilewati (duplikat)':''}`, 'success');
+  toast(`Import selesai — ${added} ditambah${updated?', '+updated+' diperbarui (link sudah ada)':''}`, 'success');
 }
 function lmRenderAll(){
   lmRenderKPI();
@@ -3751,7 +3791,14 @@ async function lmDeleteCat(kind, idx){
   lmRenderFilterOptions();
   lmRenderTable();
 }
-function lmOpenCatMgr(){ lmRenderCatMgr(); document.getElementById('lmCatMgrOverlay').classList.add('show'); }
+async function lmOpenCatMgr(){
+  lmRenderCatMgr();
+  document.getElementById('lmCatMgrOverlay').classList.add('show');
+  // Backfill any region/output that's in the data but was never registered here
+  // (e.g. from an import done before this sync existed) so the list isn't empty
+  // while the data clearly isn't.
+  if(await lmSyncCategoriesFromData()){ lmRenderCatMgr(); lmRenderFilterOptions(); lmRenderTable(); }
+}
 function lmCloseCatMgr(){ document.getElementById('lmCatMgrOverlay').classList.remove('show'); }
 function lmWire(container){
   if(container.dataset.wired) return;
@@ -3852,7 +3899,7 @@ async function renderLinkMon(){
         </div>
       </div>
       <div class="lm-toolbar">
-        <div class="lm-search"><input type="text" id="lmSearch" placeholder="Cari link atau catatan…"></div>
+        <div class="lm-search"><input type="text" id="lmSearch" placeholder="Cari link, catatan, output, region, last page…"></div>
         <select id="lmFStatus"><option value="">Semua Status</option>${Object.entries(LM_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select>
         <select id="lmFRegion"><option value="">Semua Region</option></select>
         <select id="lmFPart"><option value="">Semua Output</option></select>
