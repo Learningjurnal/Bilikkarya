@@ -3333,10 +3333,12 @@ async function lmPersistBulkStatus(ids, status, now){
   try{ await lmChunked(ids, chunk => _SB.from('bilik_links').update({status, updated_at:now}).in('id', chunk)); return true; }
   catch(e){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
 }
+let lmLoadErrorMsg = '';
 async function lmLoad(){
   if(lmLoaded) return;
   LM_DATA = [];
   lmTableReady = true;
+  lmLoadErrorMsg = '';
   if(_SB){
     try{
       const { data, error } = await _SB.from('bilik_links').select('*');
@@ -3353,14 +3355,24 @@ async function lmLoad(){
         }
       }
     }catch(e){
-      // bilik_links likely doesn't exist yet in this project — fall back to the
-      // legacy blob (if any) so nothing appears to vanish, and flag that the
-      // one-time SQL setup still needs to run for the safe storage to kick in.
-      lmTableReady = false;
+      // Every failure here used to be treated as "the table doesn't exist yet",
+      // which is misleading (and the "run this SQL" message actively wrong) when
+      // the real cause is a blocked request, bad network, or RLS — those show up
+      // identically as a thrown error from the Supabase client. Distinguish the
+      // one specific case (Postgres 42P01 = relation does not exist) from
+      // everything else, and always log the real error so it's diagnosable
+      // instead of silently falling back to an empty/local view.
+      console.error('lmLoad: gagal membaca bilik_links dari Supabase', e);
+      const isMissingTable = e && (e.code==='42P01' || /relation .* does not exist/i.test(e.message||''));
+      lmTableReady = !isMissingTable;
+      if(!isMissingTable){
+        lmLoadErrorMsg = `Gagal membaca dari Supabase: ${(e&&e.message)||'unknown error'}. Kemungkinan diblokir ad-blocker/Shields, atau koneksi internet bermasalah — data yang tampil di bawah ini mungkin bukan data terbaru.`;
+      }
       try{ const legacy = await sGet('links-core', true); LM_DATA = Array.isArray(legacy) ? legacy : []; }
       catch(_){ LM_DATA = []; }
     }
   } else {
+    lmLoadErrorMsg = 'Browser ini tidak tersambung ke Supabase (mode lokal) — data hanya tersimpan di browser ini dan TIDAK ikut pindah ke browser/perangkat lain.';
     try{ const d = await sGet('links-core', true); LM_DATA = Array.isArray(d) ? d : []; }
     catch(_){ LM_DATA = []; }
   }
@@ -3769,10 +3781,17 @@ async function lmDoImport(){
 function lmRenderSetupNotice(){
   const el = document.getElementById('lmSetupNotice');
   if(!el) return;
-  if(lmTableReady){ el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="demo-notice">⚠️ <span>Tabel <code>bilik_links</code> belum ada di Supabase — data sedang memakai penyimpanan lama sebagai cadangan. Jalankan SQL ini sekali di Supabase SQL Editor, lalu muat ulang halaman:
-    <pre style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:var(--lm-panel-2);border:1px solid var(--lm-line);border-radius:8px;padding:10px;margin:8px 0 0;">${escapeHtml(lmBuildLinksTableSql())}</pre>
-  </span></div>`;
+  if(!lmTableReady){
+    el.innerHTML = `<div class="demo-notice">⚠️ <span>Tabel <code>bilik_links</code> belum ada di Supabase — data sedang memakai penyimpanan lama sebagai cadangan. Jalankan SQL ini sekali di Supabase SQL Editor, lalu muat ulang halaman:
+      <pre style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:var(--lm-panel-2);border:1px solid var(--lm-line);border-radius:8px;padding:10px;margin:8px 0 0;">${escapeHtml(lmBuildLinksTableSql())}</pre>
+    </span></div>`;
+    return;
+  }
+  if(lmLoadErrorMsg){
+    el.innerHTML = `<div class="demo-notice">⚠️ <span>${escapeHtml(lmLoadErrorMsg)}</span></div>`;
+    return;
+  }
+  el.innerHTML = '';
 }
 function lmRenderAll(){
   lmRenderSetupNotice();
