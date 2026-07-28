@@ -106,8 +106,6 @@
   @media(max-width:1000px){.lm-kpi-row{grid-template-columns:repeat(4,minmax(0,1fr));}}
   @media(max-width:700px){.lm-kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
   .lm-kpi small{display:block;font-size:10px;color:var(--lm-muted);font-weight:600;margin-top:2px;}
-  .lm-lock{opacity:.55;font-size:11px;margin-left:4px;cursor:pointer;border:none;background:none;color:inherit;}
-  .lm-lock.on{opacity:1;}
   .lm-kpi{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-md); padding:var(--sp-3) var(--sp-4); display:flex; flex-direction:column; gap:2px;}
   .lm-kpi b{font-size:22px; font-family:'IBM Plex Mono',monospace;}
   .lm-kpi span{font-size:11px; color:var(--lm-muted); text-transform:uppercase; letter-spacing:.05em;}
@@ -122,6 +120,10 @@
   .lm-table-wrap{background:var(--lm-panel); border:1px solid var(--lm-line); border-radius:var(--r-md); overflow-x:auto;}
   .lm-table-wrap table{width:100%; border-collapse:collapse; font-size:12.5px;}
   .lm-table-wrap th{text-align:left; padding:9px 12px; color:var(--lm-muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid var(--lm-line); white-space:nowrap;}
+  .lm-table-wrap th.lm-sortable{cursor:pointer; user-select:none;}
+  .lm-table-wrap th.lm-sortable:hover{color:var(--lm-text);}
+  .lm-table-wrap th.lm-sortable.active{color:var(--lm-text);}
+  .lm-sort-ind{display:inline-block; width:10px; margin-left:2px; opacity:.7;}
   .lm-table-wrap td{padding:9px 12px; border-bottom:1px solid var(--lm-line-soft); color:var(--lm-text); vertical-align:middle;}
   .lm-link-cell a{color:var(--lm-accent); text-decoration:none; word-break:break-all;}
   .lm-link-cell a:hover{text-decoration:underline;}
@@ -3294,6 +3296,10 @@ function lmView(){
   else if(lmSort==='link-desc') arr.sort((a,b)=>(b.link||'').localeCompare(a.link||''));
   else if(lmSort==='date-desc') arr.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
   else if(lmSort==='date-asc') arr.sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0));
+  else if(lmSort==='status-asc') arr.sort((a,b)=>((LM_STATUS[a.status]||{}).label||'').localeCompare((LM_STATUS[b.status]||{}).label||''));
+  else if(lmSort==='status-desc') arr.sort((a,b)=>((LM_STATUS[b.status]||{}).label||'').localeCompare((LM_STATUS[a.status]||{}).label||''));
+  else if(lmSort==='region-asc') arr.sort((a,b)=>(a.region||'').localeCompare(b.region||''));
+  else if(lmSort==='region-desc') arr.sort((a,b)=>(b.region||'').localeCompare(a.region||''));
   return arr;
 }
 function lmRenderKPI(){
@@ -3349,7 +3355,7 @@ function lmRenderTable(){
         <td><input type="checkbox" class="lm-cb" data-lmchk="${r.id}"${isSel?' checked':''}></td>
         <td>${(lmPage-1)*LM_PAGE_SIZE+idx+1}</td>
         <td class="lm-link-cell"><a href="${escapeHtml(r.link||'#')}" target="_blank" rel="noopener">${escapeHtml(r.link||'(kosong)')}</a>${r._dup?' <span class="lm-badge" style="color:var(--lm-amber);border-color:var(--lm-amber)">Duplikat</span>':''}</td>
-        <td><span class="lm-badge" style="color:${st.color};border-color:${st.color}">${st.label}</span> <button class="lm-lock${r.locked?' on':''}" data-lmlock="${r.id}" title="${r.locked?'Terkunci — klik untuk buka':'Kunci link ini'}">${r.locked?'🔒':'🔓'}</button></td>
+        <td><span class="lm-badge" style="color:${st.color};border-color:${st.color}">${st.label}</span></td>
         <td>${r.part ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.outputs,r.part)};border-color:${lmCatColor(LM_SETTINGS.outputs,r.part)}">${escapeHtml(r.part)}</span>` : '—'}</td>
         <td>${r.region ? `<span class="lm-badge" style="color:${lmCatColor(LM_SETTINGS.regions,r.region)};border-color:${lmCatColor(LM_SETTINGS.regions,r.region)}">${escapeHtml(r.region)}</span>` : '—'}</td>
         <td>${lmFmtDate(r.updatedAt)}</td>
@@ -3365,6 +3371,18 @@ function lmRenderTable(){
   }
   const pager = document.getElementById('lmPager');
   if(pager) pager.innerHTML = lmBuildPagerHtml(lmPage, totalPages);
+  lmUpdateSortHeaderUI();
+}
+// Reflects lmSort onto the clickable column headers — active column gets the
+// arrow indicator (▲/▼) and a highlighted label; the rest are cleared.
+function lmUpdateSortHeaderUI(){
+  document.querySelectorAll('.lm-table-wrap th.lm-sortable').forEach(th=>{
+    const col = th.dataset.sortcol;
+    const ind = th.querySelector('.lm-sort-ind');
+    const isActive = lmSort===col+'-asc' || lmSort===col+'-desc';
+    th.classList.toggle('active', isActive);
+    if(ind) ind.textContent = lmSort===col+'-asc' ? '▲' : lmSort===col+'-desc' ? '▼' : '';
+  });
 }
 // Windowed pager: always shows first/last page plus a small window around the
 // current page (with … gaps), instead of one button per page — with 800+ pages
@@ -3509,10 +3527,10 @@ async function lmBulkDeleteSelected(){
 }
 function lmExportXlsx(){
   if(!LM_DATA.length){ toast('Tidak ada data untuk diekspor', 'error'); return; }
-  const headers = ['Link','Status','Output','Region','Catatan/Perubahan','Last Page','Terkunci','Diperbarui'];
-  const aoa = [headers, ...LM_DATA.map(r=>[r.link||'', (LM_STATUS[r.status]||{}).label||r.status||'', r.part||'', r.region||'', r.note||'', r.lastPage||'', r.locked?'Ya':'Tidak', lmFmtDate(r.updatedAt)])];
+  const headers = ['Link','Status','Output','Region','Catatan/Perubahan','Last Page','Diperbarui'];
+  const aoa = [headers, ...LM_DATA.map(r=>[r.link||'', (LM_STATUS[r.status]||{}).label||r.status||'', r.part||'', r.region||'', r.note||'', r.lastPage||'', lmFmtDate(r.updatedAt)])];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:40},{wch:14},{wch:16},{wch:14},{wch:30},{wch:16},{wch:10},{wch:14}];
+  ws['!cols'] = [{wch:40},{wch:14},{wch:16},{wch:14},{wch:30},{wch:16},{wch:14}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Link Monitor');
   XLSX.writeFile(wb, 'link-monitor-'+new Date().toISOString().slice(0,10)+'.xlsx');
@@ -3633,7 +3651,6 @@ function lmOpenAdd(){
   document.getElementById('lmModalTitle').textContent = 'Tambah Link';
   ['lmFLink','lmFNote','lmFLastPage'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   document.getElementById('lmFStatusInput').value = 'uncomplete';
-  document.getElementById('lmFLocked').checked = false;
   lmFillCatSelects();
   document.getElementById('lmModalOverlay').classList.add('show');
 }
@@ -3649,7 +3666,6 @@ function lmOpenEdit(id){
   document.getElementById('lmFRegionInput').value = r.region||'';
   document.getElementById('lmFNote').value = r.note||'';
   document.getElementById('lmFLastPage').value = r.lastPage||'';
-  document.getElementById('lmFLocked').checked = !!r.locked;
   document.getElementById('lmModalOverlay').classList.add('show');
 }
 function lmCloseModal(){ document.getElementById('lmModalOverlay').classList.remove('show'); lmEditId=null; }
@@ -3668,7 +3684,6 @@ async function lmSaveLinkForm(){
       r.region = document.getElementById('lmFRegionInput').value.trim();
       r.note = document.getElementById('lmFNote').value.trim();
       r.lastPage = document.getElementById('lmFLastPage').value.trim();
-      r.locked = document.getElementById('lmFLocked').checked;
       r.updatedAt = now;
     }
   } else {
@@ -3679,7 +3694,6 @@ async function lmSaveLinkForm(){
       region: document.getElementById('lmFRegionInput').value.trim(),
       note: document.getElementById('lmFNote').value.trim(),
       lastPage: document.getElementById('lmFLastPage').value.trim(),
-      locked: document.getElementById('lmFLocked').checked,
       inputAt: now, updatedAt: now
     });
   }
@@ -3757,15 +3771,16 @@ function lmWire(container){
       if(r && r.link) navigator.clipboard.writeText(r.link).then(()=>toast('Link disalin', 'success')).catch(()=>toast('Gagal menyalin', 'error'));
       return;
     }
-    const lockId = e.target.closest('[data-lmlock]')?.dataset.lmlock;
-    if(lockId){
-      const r = LM_DATA.find(x=>x.id===lockId);
-      if(r){ r.locked = !r.locked; r.updatedAt = Date.now(); lmPersist(); lmRenderTable(); }
-      return;
-    }
     if(e.target.closest('#lmConfirmDelBtn')) return lmDoDelete();
     if(e.target.closest('#lmConfirmCancelBtn') || e.target===document.getElementById('lmConfirmOverlay')){
       document.getElementById('lmConfirmOverlay').classList.remove('show'); lmDeleteId=null; lmBulkDeleteMode=false; return;
+    }
+    const sortCol = e.target.closest('[data-sortcol]')?.dataset.sortcol;
+    if(sortCol){
+      const ascKey = sortCol+'-asc', descKey = sortCol+'-desc';
+      lmSort = lmSort===ascKey ? descKey : ascKey;
+      lmPage = 1;
+      return lmRenderTable();
     }
     const pg = e.target.closest('[data-lmpage]')?.dataset.lmpage;
     if(pg){ lmPage = +pg; return lmRenderTable(); }
@@ -3866,7 +3881,7 @@ async function renderLinkMon(){
       </div>
       <div class="lm-table-wrap">
         <table>
-          <thead><tr><th style="width:30px"><input type="checkbox" id="lmChkAll" title="Pilih semua di halaman ini"></th><th>No</th><th>Link</th><th>Status</th><th>Output</th><th>Region</th><th>Update</th><th>Perubahan</th><th>Last Page</th><th>Aksi</th></tr></thead>
+          <thead><tr><th style="width:30px"><input type="checkbox" id="lmChkAll" title="Pilih semua di halaman ini"></th><th>No</th><th class="lm-sortable" data-sortcol="link">Link<span class="lm-sort-ind"></span></th><th class="lm-sortable" data-sortcol="status">Status<span class="lm-sort-ind"></span></th><th>Output</th><th class="lm-sortable" data-sortcol="region">Region<span class="lm-sort-ind"></span></th><th class="lm-sortable" data-sortcol="date">Update<span class="lm-sort-ind"></span></th><th>Perubahan</th><th>Last Page</th><th>Aksi</th></tr></thead>
           <tbody id="lmTbody"></tbody>
         </table>
       </div>
@@ -3882,7 +3897,6 @@ async function renderLinkMon(){
             <label>Region<select id="lmFRegionInput"></select></label>
             <label>Catatan / Perubahan<textarea id="lmFNote" rows="2"></textarea></label>
             <label>Last Page<input type="text" id="lmFLastPage" placeholder="mis. halaman 12"></label>
-            <label style="display:flex;align-items:center;gap:8px;flex-direction:row;"><input type="checkbox" id="lmFLocked" style="width:auto;"> Kunci link (tidak boleh diubah member lain)</label>
           </div>
           <div class="lm-modal-foot">
             <button class="lm-btn ghost" id="lmModalCancel">Batal</button>
