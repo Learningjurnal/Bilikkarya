@@ -3250,6 +3250,7 @@ function lmAutoColor(name){
   return palette[hash % palette.length];
 }
 let lmLoaded = false;
+let lmTableReady = true; // false when connected to Supabase but bilik_links doesn't exist yet
 let lmFilters = { q:'', status:'', region:'', part:'' };
 let lmSort = '';
 let lmPage = 1;
@@ -3277,10 +3278,92 @@ const LM_STATUS_LOOKUP = {};
 Object.entries(LM_STATUS).forEach(([k,v])=>{ LM_STATUS_LOOKUP[k] = k; LM_STATUS_LOOKUP[v.label.toLowerCase()] = k; });
 function lmNormalizeStatus(raw){ return LM_STATUS_LOOKUP[String(raw||'').trim().toLowerCase()] || 'uncomplete'; }
 function lmFmtDate(ms){ return ms ? new Date(ms).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+// bilik_links uses real columns (snake_case for last_page/input_at/updated_at);
+// the app's objects use camelCase everywhere else — these convert between them.
+function lmRowToDb(r){
+  return { id:r.id, link:r.link||'', status:r.status||'uncomplete', part:r.part||'', region:r.region||'',
+    note:r.note||'', last_page:r.lastPage||'', input_at:r.inputAt||Date.now(), updated_at:r.updatedAt||Date.now() };
+}
+function lmRowFromDb(row){
+  return { id:row.id, link:row.link||'', status:row.status||'uncomplete', part:row.part||'', region:row.region||'',
+    note:row.note||'', lastPage:row.last_page||'', inputAt:row.input_at||Date.now(), updatedAt:row.updated_at||Date.now() };
+}
+function lmBuildLinksTableSql(){
+  return `CREATE TABLE bilik_links (\n  id TEXT PRIMARY KEY,\n  link TEXT NOT NULL UNIQUE,\n  status TEXT NOT NULL DEFAULT 'uncomplete',\n  part TEXT DEFAULT '',\n  region TEXT DEFAULT '',\n  note TEXT DEFAULT '',\n  last_page TEXT DEFAULT '',\n  input_at BIGINT,\n  updated_at BIGINT\n);\nALTER TABLE bilik_links ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "anon_all" ON bilik_links FOR ALL USING (true) WITH CHECK (true);`;
+}
+// Splits a batch into chunks so a single import/delete of thousands of rows
+// doesn't become one oversized request — mirrors what caused single-row writes
+// to fail before (see lmPersistRows/lmPersistDeleteIds below), just at bulk scale.
+const LM_DB_CHUNK = 500;
+async function lmChunked(items, fn){
+  for(let i=0;i<items.length;i+=LM_DB_CHUNK){
+    const { error } = await fn(items.slice(i, i+LM_DB_CHUNK));
+    if(error) throw error;
+  }
+}
+// Local (no Supabase) fallback keeps the old one-blob-under-one-key approach —
+// only meaningful at small scale anyway (a single browser's localStorage), so
+// its O(n) rewrite was never the actual problem; Supabase writes were.
+async function lmPersistLocalBlob(){
+  try{ localStorage.setItem(localKey('links-core', true), JSON.stringify(LM_DATA)); return true; }
+  catch(_){ toast(t('toast_save_failed'), 'error'); return false; }
+}
+// Upserts only the given rows (add/edit/import/undo) — touches just what changed,
+// not the whole table, so one edit costs one row instead of the entire dataset.
+async function lmPersistRows(rows){
+  if(!rows.length) return true;
+  if(!_SB) return lmPersistLocalBlob();
+  try{ await lmChunked(rows, chunk => _SB.from('bilik_links').upsert(chunk.map(lmRowToDb), {onConflict:'id'})); return true; }
+  catch(e){ toast('Gagal menyimpan ke Supabase — jalankan SQL setup tabel bilik_links di Koneksi', 'error'); return false; }
+}
+async function lmPersistDeleteIds(ids){
+  if(!ids.length) return true;
+  if(!_SB) return lmPersistLocalBlob();
+  try{ await lmChunked(ids, chunk => _SB.from('bilik_links').delete().in('id', chunk)); return true; }
+  catch(e){ toast('Gagal menghapus di Supabase', 'error'); return false; }
+}
+async function lmPersistDeleteAllRows(){
+  if(!_SB){ return lmPersistLocalBlob(); }
+  try{ const { error } = await _SB.from('bilik_links').delete().not('id','is',null); if(error) throw error; return true; }
+  catch(e){ toast('Gagal menghapus di Supabase', 'error'); return false; }
+}
+async function lmPersistBulkStatus(ids, status, now){
+  if(!ids.length) return true;
+  if(!_SB) return lmPersistLocalBlob();
+  try{ await lmChunked(ids, chunk => _SB.from('bilik_links').update({status, updated_at:now}).in('id', chunk)); return true; }
+  catch(e){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
+}
 async function lmLoad(){
   if(lmLoaded) return;
-  try{ const d = await sGet('links-core', true); LM_DATA = Array.isArray(d) ? d : []; }
-  catch(_){ LM_DATA = []; }
+  LM_DATA = [];
+  lmTableReady = true;
+  if(_SB){
+    try{
+      const { data, error } = await _SB.from('bilik_links').select('*');
+      if(error) throw error;
+      LM_DATA = (data||[]).map(lmRowFromDb);
+      if(!LM_DATA.length){
+        // Table exists and is empty — if there's data left over from the old
+        // one-blob storage, migrate it in once rather than leaving it stranded.
+        const legacy = await sGet('links-core', true);
+        if(Array.isArray(legacy) && legacy.length){
+          LM_DATA = legacy;
+          await lmPersistRows(LM_DATA);
+          toast(`${LM_DATA.length} link lama dimigrasikan ke struktur penyimpanan baru`, 'success');
+        }
+      }
+    }catch(e){
+      // bilik_links likely doesn't exist yet in this project — fall back to the
+      // legacy blob (if any) so nothing appears to vanish, and flag that the
+      // one-time SQL setup still needs to run for the safe storage to kick in.
+      lmTableReady = false;
+      try{ const legacy = await sGet('links-core', true); LM_DATA = Array.isArray(legacy) ? legacy : []; }
+      catch(_){ LM_DATA = []; }
+    }
+  } else {
+    try{ const d = await sGet('links-core', true); LM_DATA = Array.isArray(d) ? d : []; }
+    catch(_){ LM_DATA = []; }
+  }
   try{ const s = await sGet('links-settings', true); if(s) LM_SETTINGS = s; }
   catch(_){ /* keep defaults */ }
   lmLoaded = true;
@@ -3304,10 +3387,6 @@ async function lmSyncCategoriesFromData(){
   [...new Set(LM_DATA.map(r=>r.region).filter(Boolean))].forEach(v=>ensure(LM_SETTINGS.regions, v));
   if(changed) await lmSaveSettings();
   return changed;
-}
-async function lmPersist(){
-  try{ await sSet('links-core', LM_DATA, true); return true; }
-  catch(_){ toast('Gagal menyimpan ke Supabase', 'error'); return false; }
 }
 function lmView(){
   const q = lmFilters.q.trim().toLowerCase();
@@ -3524,26 +3603,37 @@ function lmPushUndo(){
   const btn = document.getElementById('lmUndoBtn');
   if(btn) btn.disabled = false;
 }
+// Reconciles the DB to match a restored snapshot by diffing against current
+// LM_DATA, instead of re-uploading the whole snapshot — undoing a single edit
+// only touches that one row, not the entire dataset.
 async function lmUndo(){
   const prev = lmUndoStack.pop();
   if(!prev) return;
+  const beforeMap = new Map(LM_DATA.map(r=>[r.id, r]));
+  const afterIds = new Set(prev.map(r=>r.id));
+  const toDelete = LM_DATA.filter(r=>!afterIds.has(r.id)).map(r=>r.id);
+  const toUpsert = prev.filter(r=>{ const b = beforeMap.get(r.id); return !b || JSON.stringify(b)!==JSON.stringify(r); });
   LM_DATA = prev;
-  await lmPersist();
+  let ok = true;
+  if(toDelete.length) ok = await lmPersistDeleteIds(toDelete) && ok;
+  if(toUpsert.length) ok = await lmPersistRows(toUpsert) && ok;
   lmSelected.clear();
   lmRenderAll();
   const btn = document.getElementById('lmUndoBtn');
   if(btn) btn.disabled = lmUndoStack.length===0;
-  toast('Perubahan terakhir dibatalkan', 'success');
+  toast(ok ? 'Perubahan terakhir dibatalkan' : 'Gagal menyimpan pembatalan', ok?'success':'error');
 }
 async function lmBulkStatusApply(){
   const val = document.getElementById('lmBulkStatus').value;
   if(!val || !lmSelected.size) return;
   lmPushUndo();
-  LM_DATA.forEach(r=>{ if(lmSelected.has(r.id)){ r.status = val; r.updatedAt = Date.now(); } });
-  await lmPersist();
+  const now = Date.now();
+  const ids = [...lmSelected];
+  LM_DATA.forEach(r=>{ if(lmSelected.has(r.id)){ r.status = val; r.updatedAt = now; } });
+  const ok = await lmPersistBulkStatus(ids, val, now);
   lmClearSelection();
   lmRenderAll();
-  toast('Status massal diterapkan', 'success');
+  toast(ok ? 'Status massal diterapkan' : 'Gagal menyimpan ke Supabase', ok?'success':'error');
 }
 function lmOpenAllSelected(){
   const links = LM_DATA.filter(r=>lmSelected.has(r.id)).map(r=>r.link).filter(Boolean);
@@ -3652,6 +3742,7 @@ async function lmDoImport(){
   // re-importing the same file after a parsing fix (e.g. status normalization)
   // should correct rows already in LM_DATA, not silently skip them forever.
   const existing = new Map(LM_DATA.map(r=>[(r.link||'').trim().toLowerCase(), r]));
+  const touched = [];
   let added = 0, updated = 0;
   lmImportRows.forEach(r=>{
     const key = r.link.trim().toLowerCase();
@@ -3659,21 +3750,32 @@ async function lmDoImport(){
     if(hit){
       hit.status = r.status||'uncomplete'; hit.part = r.part||hit.part||''; hit.region = r.region||hit.region||'';
       hit.note = r.note||hit.note||''; hit.lastPage = r.lastPage||hit.lastPage||''; hit.updatedAt = now;
+      touched.push(hit);
       updated++;
       return;
     }
     const row = { id:'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8)+added, link:r.link, status:r.status||'uncomplete', part:r.part||'', region:r.region||'', note:r.note||'', lastPage:r.lastPage||'', inputAt:now, updatedAt:now };
     LM_DATA.unshift(row);
     existing.set(key, row);
+    touched.push(row);
     added++;
   });
   await lmSyncCategoriesFromData();
-  await lmPersist();
+  const ok = await lmPersistRows(touched);
   lmCloseImport();
   lmRenderAll();
-  toast(`Import selesai — ${added} ditambah${updated?', '+updated+' diperbarui (link sudah ada)':''}`, 'success');
+  toast(ok ? `Import selesai — ${added} ditambah${updated?', '+updated+' diperbarui (link sudah ada)':''}` : 'Gagal menyimpan ke Supabase', ok?'success':'error');
+}
+function lmRenderSetupNotice(){
+  const el = document.getElementById('lmSetupNotice');
+  if(!el) return;
+  if(lmTableReady){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="demo-notice">⚠️ <span>Tabel <code>bilik_links</code> belum ada di Supabase — data sedang memakai penyimpanan lama sebagai cadangan. Jalankan SQL ini sekali di Supabase SQL Editor, lalu muat ulang halaman:
+    <pre style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:var(--lm-panel-2);border:1px solid var(--lm-line);border-radius:8px;padding:10px;margin:8px 0 0;">${escapeHtml(lmBuildLinksTableSql())}</pre>
+  </span></div>`;
 }
 function lmRenderAll(){
+  lmRenderSetupNotice();
   lmRenderKPI();
   lmRenderStatusChart();
   lmRenderFilterOptions();
@@ -3715,6 +3817,7 @@ async function lmSaveLinkForm(){
   if(!link){ toast('Link tidak boleh kosong', 'error'); return; }
   if(!isSafeUrl(link)){ toast('Link harus diawali http:// atau https://', 'error'); return; }
   const now = Date.now();
+  let row;
   if(lmEditId){
     const r = LM_DATA.find(x=>x.id===lmEditId);
     if(r){
@@ -3725,9 +3828,10 @@ async function lmSaveLinkForm(){
       r.note = document.getElementById('lmFNote').value.trim();
       r.lastPage = document.getElementById('lmFLastPage').value.trim();
       r.updatedAt = now;
+      row = r;
     }
   } else {
-    LM_DATA.unshift({
+    row = {
       id: 'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8),
       link, status: document.getElementById('lmFStatusInput').value,
       part: document.getElementById('lmFPartInput').value.trim(),
@@ -3735,9 +3839,10 @@ async function lmSaveLinkForm(){
       note: document.getElementById('lmFNote').value.trim(),
       lastPage: document.getElementById('lmFLastPage').value.trim(),
       inputAt: now, updatedAt: now
-    });
+    };
+    LM_DATA.unshift(row);
   }
-  const ok = await lmPersist();
+  const ok = row ? await lmPersistRows([row]) : true;
   lmCloseModal();
   lmRenderAll();
   if(ok) toast(lmEditId?'Link diperbarui':'Link ditambahkan', 'success');
@@ -3745,16 +3850,19 @@ async function lmSaveLinkForm(){
 function lmAskDelete(id){ lmDeleteId = id; lmBulkDeleteMode = false; document.getElementById('lmConfirmOverlay').classList.add('show'); }
 async function lmDoDelete(){
   lmPushUndo();
+  let ids;
   if(lmBulkDeleteMode){
+    ids = LM_DATA.filter(r=>lmSelected.has(r.id)).map(r=>r.id);
     LM_DATA = LM_DATA.filter(r=>!lmSelected.has(r.id));
     lmSelected.clear();
     lmBulkDeleteMode = false;
   } else {
+    ids = [lmDeleteId];
     LM_DATA = LM_DATA.filter(r=>r.id!==lmDeleteId);
     lmDeleteId = null;
   }
   document.getElementById('lmConfirmOverlay').classList.remove('show');
-  const ok = await lmPersist();
+  const ok = await lmPersistDeleteIds(ids);
   lmRenderAll();
   if(ok) toast('Link dihapus', 'success');
 }
@@ -3778,7 +3886,7 @@ async function lmConfirmDeleteAll(){
   lmPushUndo();
   LM_DATA = [];
   lmSelected.clear();
-  const ok = await lmPersist();
+  const ok = await lmPersistDeleteAllRows();
   lmCloseDeleteAll();
   lmRenderAll();
   toast(ok ? 'Semua link telah dihapus' : 'Gagal menghapus — cek koneksi Supabase', ok?'success':'error');
@@ -3915,6 +4023,7 @@ async function renderLinkMon(){
     el.dataset.built = '1';
     el.innerHTML = `
       <h2 class="lm-heading">Monitor Link</h2>
+      <div id="lmSetupNotice"></div>
       <div class="lm-kpi-row" id="lmKpiRow"></div>
       <div class="lm-chart-row-wrap">
         <div class="lm-chart-panel">
