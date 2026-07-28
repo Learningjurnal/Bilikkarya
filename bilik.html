@@ -3459,11 +3459,51 @@ function lmHandleImportRows(rows){
   document.getElementById('lmImportPreview').textContent = rows.length ? `${rows.length} link siap diimport.` : 'Tidak ada baris valid ditemukan.';
   document.getElementById('lmImportDoBtn').disabled = !rows.length;
 }
+// Maps a matrix of cells (row 0 = header) to link rows. If the header names
+// recognizable columns (Link/Status/Output/Region/...), match by name — files
+// exported from other trackers rarely use our exact column order. Falls back
+// to the old fixed order (link,status,output,region) when no header matches,
+// so plain no-header sheets still work.
+function lmMapTableRows(matrix){
+  if(!matrix.length) return [];
+  const HEADER_ALIASES = {
+    link: ['link','url','tautan'],
+    status: ['status'],
+    part: ['output','part','tipe','type'],
+    region: ['region','wilayah'],
+    lastPage: ['last page','lastpage','halaman terakhir'],
+    note: ['perubahan','catatan','note','notes']
+  };
+  const headerRow = matrix[0].map(c=>String(c||'').trim().toLowerCase());
+  const colIndex = {};
+  Object.entries(HEADER_ALIASES).forEach(([key, aliases])=>{
+    const idx = headerRow.findIndex(h=>aliases.includes(h));
+    if(idx!==-1) colIndex[key] = idx;
+  });
+  const hasRecognizedHeader = colIndex.link !== undefined;
+  const get = (row, key, fallbackIdx) => {
+    const idx = hasRecognizedHeader ? colIndex[key] : fallbackIdx;
+    return idx===undefined ? '' : String(row[idx]||'').trim();
+  };
+  return matrix.slice(1).map(row=>({
+    link: get(row,'link',0),
+    status: (get(row,'status',1).toLowerCase() in LM_STATUS) ? get(row,'status',1).toLowerCase() : 'uncomplete',
+    part: get(row,'part',2),
+    region: get(row,'region',3),
+    lastPage: get(row,'lastPage',4),
+    note: get(row,'note',5)
+  })).filter(r=>r.link && isSafeUrl(r.link));
+}
 function lmReadImportFile(file){
   const ext = (file.name.split('.').pop()||'').toLowerCase();
   if(ext==='csv' || ext==='txt'){
     const reader = new FileReader();
-    reader.onload = () => lmHandleImportRows(lmParseLinksFromText(String(reader.result)));
+    reader.onload = () => {
+      const text = String(reader.result);
+      const matrix = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>l.split(/\t|,(?=\S)/).map(s=>s.trim()));
+      const looksLikeHeader = matrix.length && /link|url/i.test(matrix[0].join(' '));
+      lmHandleImportRows(looksLikeHeader ? lmMapTableRows(matrix) : lmParseLinksFromText(text));
+    };
     reader.readAsText(file);
   } else {
     const reader = new FileReader();
@@ -3472,13 +3512,7 @@ function lmReadImportFile(file){
         const wb = XLSX.read(new Uint8Array(reader.result), {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const matrix = XLSX.utils.sheet_to_json(ws, {header:1});
-        const rows = matrix.slice(1).map(row=>({
-          link: String(row[0]||'').trim(),
-          status: String(row[1]||'').toLowerCase() in LM_STATUS ? String(row[1]).toLowerCase() : 'uncomplete',
-          part: String(row[2]||'').trim(),
-          region: String(row[3]||'').trim()
-        })).filter(r=>r.link && isSafeUrl(r.link));
-        lmHandleImportRows(rows);
+        lmHandleImportRows(lmMapTableRows(matrix));
       }catch(e){ toast('Gagal membaca file', 'error'); }
     };
     reader.readAsArrayBuffer(file);
@@ -3494,7 +3528,7 @@ async function lmDoImport(){
     const key = r.link.trim().toLowerCase();
     if(existing.has(key)){ skipped++; return; }
     existing.add(key);
-    LM_DATA.unshift({ id:'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8)+added, link:r.link, status:r.status||'uncomplete', part:r.part||'', region:r.region||'', note:'', inputAt:now, updatedAt:now });
+    LM_DATA.unshift({ id:'lm_'+now.toString(36)+Math.random().toString(36).slice(2,8)+added, link:r.link, status:r.status||'uncomplete', part:r.part||'', region:r.region||'', note:r.note||'', lastPage:r.lastPage||'', inputAt:now, updatedAt:now });
     added++;
   });
   await lmPersist();
